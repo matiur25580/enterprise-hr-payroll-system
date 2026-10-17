@@ -14,6 +14,8 @@ mongoose.connect(process.env.MONGO_URI)
     .catch(err => console.log('MongoDB error:', err.message));
 
     app.use('/api/auth', authRoutes);
+    const employeeRoutes = require('./routes/employees');
+    app.use('/api/employees', employeeRoutes);
 
     app.get('/api/admin-only', verifyToken, authorize('admin'), (req, res) => {
       res.json({ message: `Welcome admin ${req.user.id}` });
