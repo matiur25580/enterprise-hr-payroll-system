@@ -7,6 +7,7 @@ import Leave from './Leave'
 import SalaryChart from './SalaryChart'
 import AuditLog from './AuditLog'
 import OfferLetter from './OfferLetter'
+import Performance from './Performance'
 import { logAudit } from './audit'
 import { getRole, getUserEmail, canDelete, canEdit, canAdd } from './role'
 
@@ -126,7 +127,7 @@ export default function Dashboard() {
       <Payroll employees={filtered} />
       {role!=='Employee' && <Attendance employees={filtered} />}
       <Leave employees={role==='Employee' ? filtered : employees} />
-      {role!=='Employee' && <OfferLetter employees={employees} />
+      {role!=='Employee' && <OfferLetter employees={employees} />}
       {role==='Admin' && <AuditLog />}
     </div>
   )
