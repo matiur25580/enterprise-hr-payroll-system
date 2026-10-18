@@ -1,0 +1,5 @@
+export const getRole = () => localStorage.getItem('role') || 'Admin'
+export const getUserEmail = () => localStorage.getItem('userEmail') || ''
+export const canDelete = () => getRole() === 'Admin'
+export const canEdit = () => getRole() === 'Admin' || getRole() === 'HR'
+export const canAdd = () => getRole() === 'Admin' || getRole() === 'HR'
