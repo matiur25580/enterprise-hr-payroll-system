@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { logAudit } from './audit'
 
-export default function Performance({ employees }: { employees: any[] }) {
+export default function Performance({ employees, onNotify }: { employees: any[]; onNotify: (message: string) => void }) {
   const [ratings, setRatings] = useState<{[k:string]:number}>(()=>JSON.parse(localStorage.getItem('perf')||'{}'))
 
   const setRating = (id:string, name:string, v:number) => {
@@ -9,6 +9,7 @@ export default function Performance({ employees }: { employees: any[] }) {
     setRatings(nr)
     localStorage.setItem('perf', JSON.stringify(nr))
     logAudit('PERFORMANCE', `Rated ${name} ${v}/5`)
+    onNotify(`Performance rating for ${name} saved successfully.`)
   }
 
   useEffect(()=>{},[])
@@ -16,7 +17,7 @@ export default function Performance({ employees }: { employees: any[] }) {
   return (
     <div style={{marginTop:20}}>
       <h2>Performance Review</h2>
-      <table border={1} cellPadding={6} style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
+      <table style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
         <thead><tr><th>Name</th><th>Department</th><th>Rating</th><th>Status</th><th>Action</th></tr></thead>
         <tbody>
           {employees.map((e:any)=>{

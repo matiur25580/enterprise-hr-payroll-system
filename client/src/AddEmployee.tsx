@@ -12,7 +12,7 @@ type EmployeeForm = {
 
 type AddEmployeeProps = {
   token: string
-  onAdded: () => void
+  onAdded: (employeeId: string) => void
   onUnauthorized: () => void
 }
 
@@ -35,13 +35,13 @@ export default function AddEmployee({ token, onAdded, onUnauthorized }: AddEmplo
     setIsSubmitting(true)
 
     try {
-      await axios.post(
+      const response = await axios.post<{ employeeId: string }>(
         `${apiUrl}/api/employees`,
         { ...form, salary: Number(form.salary) },
         { headers: { Authorization: `Bearer ${token}` } },
       )
       setForm(emptyForm)
-      onAdded()
+      onAdded(response.data.employeeId)
     } catch (error) {
       if (axios.isAxiosError<{ message?: string }>(error)) {
         if (error.response?.status === 401) {

@@ -1,44 +1,164 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'preact/hooks'
+import axios from 'axios'
+import { apiUrl } from './api'
 
-export default function Leave({ employees }: { employees: any[] }) {
-  const [leaves, setLeaves] = useState<any[]>([])
-  const [form, setForm] = useState({email:'', date:'', reason:''})
+type LeaveRequest = {
+  _id: string
+  employeeName: string
+  employeeEmail: string
+  date: string
+  reason: string
+  status: 'Pending' | 'Approved' | 'Rejected'
+}
 
-  const applyLeave = (e:any) => {
-    e.preventDefault()
-    const emp = employees.find((x:any)=>x.email===form.email)
-    setLeaves([...leaves, {...form, name: emp?.name || form.email, status:'Pending'}])
-    setForm({email:'', date:'', reason:''})
+type LeaveProps = {
+  token: string
+  employeeSelfService: boolean
+  onNotify: (message: string) => void
+  onUnauthorized: () => void
+}
+
+export default function Leave({ token, employeeSelfService, onNotify, onUnauthorized }: LeaveProps) {
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([])
+  const [form, setForm] = useState({ date: '', reason: '' })
+  const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const loadRequests = async () => {
+    try {
+      const response = await axios.get<LeaveRequest[]>(`${apiUrl}/api/leaves`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setLeaves(response.data)
+      setError('')
+    } catch (requestError) {
+      if (axios.isAxiosError(requestError) && requestError.response?.status === 401) {
+        onUnauthorized()
+        return
+      }
+      setError('Could not load leave requests. Please try again.')
+    }
   }
 
-  const approve = (i:number) => {
-    const copy = [...leaves]
-    copy[i].status = 'Approved'
-    setLeaves(copy)
+  useEffect(() => {
+    void loadRequests()
+  }, [token])
+
+  const applyLeave = async (event: Event) => {
+    event.preventDefault()
+    setError('')
+    setIsSubmitting(true)
+    try {
+      const response = await axios.post<LeaveRequest>(
+        `${apiUrl}/api/leaves`,
+        form,
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      setLeaves((current) => [response.data, ...current])
+      setForm({ date: '', reason: '' })
+      onNotify('Leave request submitted successfully.')
+    } catch (requestError) {
+      if (axios.isAxiosError<{ message?: string }>(requestError)) {
+        if (requestError.response?.status === 401) {
+          onUnauthorized()
+          return
+        }
+        setError(requestError.response?.data?.message ?? 'Could not submit the leave request.')
+      } else {
+        setError('Could not submit the leave request. Please try again.')
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const reviewLeave = async (request: LeaveRequest, status: 'Approved' | 'Rejected') => {
+    setError('')
+    try {
+      const response = await axios.patch<LeaveRequest>(
+        `${apiUrl}/api/leaves/${request._id}`,
+        { status },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      setLeaves((current) => current.map((leave) => leave._id === request._id ? response.data : leave))
+      onNotify(`Leave request ${status.toLowerCase()} successfully.`)
+    } catch (requestError) {
+      if (axios.isAxiosError<{ message?: string }>(requestError)) {
+        if (requestError.response?.status === 401) {
+          onUnauthorized()
+          return
+        }
+        setError(requestError.response?.data?.message ?? `Could not ${status.toLowerCase()} the leave request.`)
+      } else {
+        setError(`Could not ${status.toLowerCase()} the leave request. Please try again.`)
+      }
+    }
   }
 
   return (
-    <div style={{marginTop:20}}>
-      <h2>Leave Management</h2>
-      <form onSubmit={applyLeave} style={{display:'flex', gap:8, margin:'10px 0', flexWrap:'wrap'}}>
-        <select value={form.email} onChange={e=>setForm({...form,email:e.target.value})} required>
-          <option value="">Select Employee</option>
-          {employees.map((x:any)=><option key={x.email} value={x.email}>{x.name}</option>)}
-        </select>
-        <input type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} required />
-        <input placeholder="Reason" value={form.reason} onChange={e=>setForm({...form,reason:e.target.value})} required />
-        <button type="submit">Apply Leave</button>
-      </form>
-
-      <table border={1} cellPadding={8} style={{width:'100%', borderCollapse:'collapse'}}>
-        <thead><tr><th>Name</th><th>Date</th><th>Reason</th><th>Status</th><th>Action</th></tr></thead>
-        <tbody>
-          {leaves.map((l:any,i:number)=>(
-            <tr key={i}><td>{l.name}</td><td>{l.date}</td><td>{l.reason}</td><td>{l.status}</td>
-            <td>{l.status==='Pending' ? <button onClick={()=>approve(i)} style={{background:'#4caf50',color:'white'}}>Approve</button> : '-'}</td></tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="leave-workspace">
+      <h2>{employeeSelfService ? 'Request time off' : 'Employee leave requests'}</h2>
+      {employeeSelfService && (
+        <form className="leave-form" onSubmit={applyLeave}>
+          <label>
+            <span>Leave date</span>
+            <input
+              type="date"
+              value={form.date}
+              onInput={(event) => setForm({ ...form, date: event.currentTarget.value })}
+              required
+            />
+          </label>
+          <label className="leave-reason-field">
+            <span>Reason</span>
+            <input
+              placeholder="Briefly share the reason for your request"
+              value={form.reason}
+              onInput={(event) => setForm({ ...form, reason: event.currentTarget.value })}
+              maxLength={500}
+              required
+            />
+          </label>
+          <button className="primary-button" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Submitting…' : 'Submit request'}
+          </button>
+        </form>
+      )}
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              {!employeeSelfService && <th>Employee</th>}
+              <th>Leave date</th>
+              <th>Reason</th>
+              <th>Status</th>
+              {!employeeSelfService && <th>Review</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {leaves.map((leave) => (
+              <tr key={leave._id}>
+                {!employeeSelfService && <td>{leave.employeeName}<small className="leave-email">{leave.employeeEmail}</small></td>}
+                <td>{new Date(leave.date).toLocaleDateString()}</td>
+                <td>{leave.reason}</td>
+                <td><span className={`leave-status status-${leave.status.toLowerCase()}`}>{leave.status}</span></td>
+                {!employeeSelfService && (
+                  <td className="leave-actions">
+                    {leave.status === 'Pending' ? (
+                      <>
+                        <button className="table-action" onClick={() => void reviewLeave(leave, 'Approved')}>Approve</button>
+                        <button className="table-action danger-action" onClick={() => void reviewLeave(leave, 'Rejected')}>Decline</button>
+                      </>
+                    ) : 'Reviewed'}
+                  </td>
+                )}
+              </tr>
+            ))}
+            {!leaves.length && <tr><td colSpan={employeeSelfService ? 3 : 5} className="table-empty">No leave requests yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
