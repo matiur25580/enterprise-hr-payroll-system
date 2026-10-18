@@ -2,7 +2,7 @@ import { useState } from 'react'
 import jsPDF from 'jspdf'
 import { logAudit } from './audit'
 
-export default function OfferLetter({ employees }: { employees: any[] }) {
+export default function OfferLetter({ employees, onNotify }: { employees: any[]; onNotify: (message: string) => void }) {
   const [sel, setSel] = useState('')
 
   const generate = () => {
@@ -22,13 +22,14 @@ export default function OfferLetter({ employees }: { employees: any[] }) {
     doc.text('HR Manager', 20, 135)
     doc.save(`${e.name}-offer-letter.pdf`)
     logAudit('OFFER', `Generated offer letter for ${e.name}`)
+    onNotify(`Offer letter for ${e.name} generated successfully.`)
   }
 
   return (
     <div style={{marginTop:20, border:'1px solid #555', padding:15, borderRadius:8}}>
       <h2>Offer Letter Generator</h2>
       <div style={{display:'flex', gap:10}}>
-        <select value={sel} onChange={e=>setSel(e.target.value)} style={{padding:8, flex:1}}>
+        <select value={sel} onChange={e=>setSel(e.currentTarget.value)} style={{padding:8, flex:1}}>
           <option value="">Select Employee</option>
           {employees.map((e:any)=><option key={e._id||e.email} value={e._id||e.email}>{e.name} - {e.department}</option>)}
         </select>
