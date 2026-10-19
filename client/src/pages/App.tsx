@@ -4,6 +4,11 @@ import Dashboard from './Dashboard'
 import type { Role, UserSession } from '../utils/role'
 
 const roles: Role[] = ['Admin', 'HR', 'Employee']
+const rolePaths: Record<Role, string> = {
+  Admin: '/admin',
+  HR: '/hr',
+  Employee: '/employee',
+}
 
 function isRole(value: unknown): value is Role {
   return roles.some((role) => role === value)
@@ -46,6 +51,12 @@ export default function App() {
     setSession(restoreSession())
     setAuthInitialized(true)
   }, [])
+
+  useEffect(() => {
+    if (!authInitialized) return
+    const route = session ? rolePaths[session.role] : '/'
+    if (window.location.pathname !== route) window.history.replaceState(null, '', route)
+  }, [authInitialized, session])
 
   const signIn = (nextSession: UserSession) => {
     sessionStorage.setItem('hr_token', nextSession.token)

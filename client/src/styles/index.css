@@ -1,15 +1,20 @@
 * { box-sizing: border-box; }
 
-html { min-width: 320px; min-height: 100%; }
+html {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
 
 body {
+  width: 100%;
   min-width: 320px;
   min-height: 100vh;
   min-height: 100dvh;
-  width: 100%;
   margin: 0;
 }
 
 button, input, select { font: inherit; }
 
-#app { width: 100%; min-height: 100vh; min-height: 100dvh; }
+#root, #app { width: 100%; min-height: 100vh; min-height: 100dvh; margin: 0; }

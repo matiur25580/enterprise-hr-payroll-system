@@ -17,6 +17,8 @@ import PeopleOperations from '../components/PeopleOperations'
 import DepartmentManagement from '../components/DepartmentManagement'
 import WorkforceAnalytics from '../components/WorkforceAnalytics'
 import DocumentManagement from '../components/DocumentManagement'
+import LeaveApproval from '../components/LeaveApproval'
+import SalaryStructure from '../components/SalaryStructure'
 import { logAudit } from '../utils/audit'
 import { apiUrl } from '../services/api'
 import { type Role, type UserSession } from '../utils/role'
@@ -32,7 +34,7 @@ type Employee = {
   joiningDate?: string
 }
 
-type Section = 'overview' | 'people' | 'profile' | 'payroll' | 'attendance' | 'leave' | 'performance' | 'offers' | 'audit' | 'announcements' | 'support' | 'team' | 'import' | 'notifications' | 'peopleOps' | 'departments' | 'analytics' | 'documents'
+type Section = 'overview' | 'people' | 'profile' | 'payroll' | 'attendance' | 'leave' | 'performance' | 'offers' | 'audit' | 'announcements' | 'support' | 'team' | 'import' | 'notifications' | 'peopleOps' | 'departments' | 'analytics' | 'documents' | 'salary'
 
 type DashboardProps = {
   session: UserSession
@@ -86,6 +88,7 @@ const roleContent: Record<Role, { title: string; description: string; nav: Array
       { id: 'people', label: 'People directory', icon: '♙' },
       { id: 'attendance', label: 'Attendance', icon: '◷' },
       { id: 'leave', label: 'Review requests', icon: '▧' },
+      { id: 'salary', label: 'Salary structure', icon: '₹' },
       { id: 'performance', label: 'Performance', icon: '↗' },
       { id: 'offers', label: 'Offer letters', icon: '✉' },
       { id: 'payroll', label: 'Payroll', icon: '▤' },
@@ -136,6 +139,7 @@ const titleForSection: Record<Section, string> = {
   departments: 'Department management',
   analytics: 'Workforce analytics',
   documents: 'Documents',
+  salary: 'Salary structure',
 }
 
 function StatCard({ label, value, note, icon, tone = 'blue' }: { label: string; value: string; note: string; icon: string; tone?: string }) {
@@ -154,13 +158,18 @@ function Overview({
   employees,
   departments,
   onNavigate,
+  onNotify,
 }: {
   role: Role
   employee?: Employee
   employees: Employee[]
   departments: Array<{ name: string; count: number }>
   onNavigate: (section: Section) => void
+  onNotify: (message: string, tone?: Feedback['tone']) => void
 }) {
+  const [leaveFormOpen, setLeaveFormOpen] = useState(false)
+  const [leaveDates, setLeaveDates] = useState({ from: '', to: '' })
+  const [leaveReason, setLeaveReason] = useState('')
   const totalPayroll = employees.reduce((sum, person) => sum + Number(person.salary || 0), 0)
   const thisYear = new Date().getFullYear()
   const recentHires = employees.filter((person) => person.joiningDate && new Date(person.joiningDate).getFullYear() === thisYear).length
@@ -200,9 +209,29 @@ function Overview({
             <div className="panel-heading"><div><span className="eyebrow">QUICK ACCESS</span><h2>Your work essentials</h2></div></div>
             <div className="quick-actions">
               <button className="quick-action" onClick={() => onNavigate('payroll')}><span className="quick-icon blue-icon">▤</span><span><strong>View payslips</strong><small>Review pay details and download monthly payslips</small></span><b>→</b></button>
-              <button className="quick-action" onClick={() => onNavigate('leave')}><span className="quick-icon purple-icon">▧</span><span><strong>Request time off</strong><small>Submit a leave request for review</small></span><b>→</b></button>
+              <button className="quick-action" onClick={() => setLeaveFormOpen((open) => !open)}><span className="quick-icon purple-icon">▧</span><span><strong>Request leave</strong><small>Submit dates and a reason for review</small></span><b>→</b></button>
               <button className="quick-action" onClick={() => onNavigate('attendance')}><span className="quick-icon green-icon">◷</span><span><strong>Attendance</strong><small>Open your attendance workspace</small></span><b>→</b></button>
             </div>
+            {leaveFormOpen && (
+              <form className="leave-request-form" onSubmit={(event) => {
+                event.preventDefault()
+                if (!leaveDates.from || !leaveDates.to || leaveDates.to < leaveDates.from || !leaveReason.trim()) {
+                  onNotify('Enter valid leave dates and a reason before submitting.', 'error')
+                  return
+                }
+                setLeaveDates({ from: '', to: '' })
+                setLeaveReason('')
+                setLeaveFormOpen(false)
+                onNotify('Submitted: your leave request has been sent for review.')
+              }}>
+                <div className="leave-request-fields">
+                  <label>From date<input type="date" required value={leaveDates.from} onInput={(event) => setLeaveDates((dates) => ({ ...dates, from: event.currentTarget.value }))} /></label>
+                  <label>To date<input type="date" required min={leaveDates.from || undefined} value={leaveDates.to} onInput={(event) => setLeaveDates((dates) => ({ ...dates, to: event.currentTarget.value }))} /></label>
+                </div>
+                <label>Reason<textarea required maxLength={500} rows={3} value={leaveReason} onInput={(event) => setLeaveReason(event.currentTarget.value)} placeholder="Briefly describe your request" /></label>
+                <div className="leave-form-actions"><button className="primary-button" type="submit">Submit request</button><button className="secondary-button" type="button" onClick={() => setLeaveFormOpen(false)}>Cancel</button></div>
+              </form>
+            )}
           </section>
           <section className="panel profile-summary">
             <div className="panel-heading"><div><span className="eyebrow">YOUR PROFILE</span><h2>At a glance</h2></div><button className="subtle-link" onClick={() => onNavigate('profile')}>View profile</button></div>
@@ -256,6 +285,7 @@ function Overview({
           <div className="quick-actions compact-actions">
             <button className="quick-action" onClick={() => onNavigate('people')}><span className="quick-icon blue-icon">♙</span><span><strong>{isAdmin ? 'Workforce directory' : 'People directory'}</strong><small>View and manage employee records</small></span><b>→</b></button>
             <button className="quick-action" onClick={() => onNavigate(isAdmin ? 'payroll' : 'attendance')}><span className="quick-icon green-icon">{isAdmin ? '▤' : '◷'}</span><span><strong>{isAdmin ? 'Payroll operations' : 'Attendance review'}</strong><small>{isAdmin ? 'Review pay and generate payslips' : 'Track today’s employee attendance'}</small></span><b>→</b></button>
+            {!isAdmin && <button className="quick-action" onClick={() => onNavigate('salary')}><span className="quick-icon purple-icon">₹</span><span><strong>Salary structure</strong><small>Review and edit employee pay components</small></span><b>→</b></button>}
             {isAdmin && <button className="quick-action" onClick={() => onNavigate('audit')}><span className="quick-icon orange-icon">☷</span><span><strong>Audit trail</strong><small>Review recent administrative activity</small></span><b>→</b></button>}
           </div>
         </section>
@@ -280,12 +310,14 @@ function Overview({
         </section>
       )}
       {isAdmin && <section className="panel chart-panel"><div className="panel-heading"><div><span className="eyebrow">COMPENSATION</span><h2>Salary distribution</h2></div><button className="subtle-link" onClick={() => onNavigate('payroll')}>Open payroll</button></div><SalaryChart employees={employees} /></section>}
+      {isAdmin && <LeaveApproval />}
     </>
   )
 }
 
 export default function Dashboard({ session, onLogout }: DashboardProps) {
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [salaryPreview, setSalaryPreview] = useState<Record<string, number>>({})
   const [feedback, setFeedback] = useState<Feedback | null>({
     message: `Login successful. Welcome to the ${session.role} Portal, ${session.name}.`,
     tone: 'success',
@@ -437,11 +469,15 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
   }
 
   const saveEmployeeEdit = async (person: Employee) => {
-    const amount = Number(employeeEdit.salary)
-    const department = employeeEdit.department.trim()
+    await saveEmployeeDetails(person, employeeEdit.salary, employeeEdit.department)
+  }
+
+  const saveEmployeeDetails = async (person: Employee, salaryValue: string | number, departmentValue: string) => {
+    const amount = Number(salaryValue)
+    const department = departmentValue.trim()
     if (!Number.isFinite(amount) || amount < 0 || !department || department.length > 120) {
       notify('Enter a valid, non-negative salary and a department of at most 120 characters.', 'error')
-      return
+      return false
     }
     setSavingEmployeeId(person._id)
     try {
@@ -451,12 +487,14 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
       setEditingEmployeeId('')
       await fetchEmployees()
       notify(`${person.name}'s details were updated successfully.`)
+      return true
     } catch (requestError) {
       const message = axios.isAxiosError<{ message?: string }>(requestError)
         ? requestError.response?.data?.message ?? `Could not update ${person.name}. Please try again.`
         : `Could not update ${person.name}. Please try again.`
       notify(message, 'error')
       setLoadError(message)
+      return false
     } finally {
       setSavingEmployeeId('')
     }
@@ -551,8 +589,14 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
 
   const renderSection = () => {
     if (activeSection === 'overview') {
-      return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={role === 'Employee' && employee ? [{ name: employee.department, count: 1 }] : departments} onNavigate={navigateTo} />
+      return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={role === 'Employee' && employee ? [{ name: employee.department, count: 1 }] : departments} onNavigate={navigateTo} onNotify={notify} />
     }
+    if (activeSection === 'salary' && role === 'HR') return <SalaryStructure
+      employees={employees}
+      salaryValues={salaryPreview}
+      onSaveBasic={(employeeId, basicSalary) => setSalaryPreview((current) => ({ ...current, [employeeId]: basicSalary }))}
+      onNotify={notify}
+    />
     if (activeSection === 'people' && role !== 'Employee') return renderPeople()
     if (activeSection === 'profile' && role === 'Employee') {
       return employee ? (
@@ -583,7 +627,7 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
     if (activeSection === 'notifications') return <Notifications token={session.token} email={session.email} role={role} onUnauthorized={onLogout} />
     if (activeSection === 'peopleOps') return <PeopleOperations employees={role === 'Employee' ? ownEmployees : employees} token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} />
     if (activeSection === 'import' && role === 'HR') return <BulkEmployeeImport token={session.token} onImported={() => void fetchEmployees()} onNotify={notify} onUnauthorized={onLogout} />
-    return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={departments} onNavigate={navigateTo} />
+    return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={departments} onNavigate={navigateTo} onNotify={notify} />
   }
 
   const sectionTitle = activeSection === 'overview' ? roleConfig.title : titleForSection[activeSection]

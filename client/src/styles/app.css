@@ -1282,3 +1282,42 @@ body { min-height: 100vh; min-height: 100dvh; }
   .payroll-run-form { align-items: stretch; flex-direction: column; }
   .payroll-run-form label { flex: 1; }
 }
+
+.salary-structure-panel, .leave-approval-panel { width: 100%; max-width: none; }
+.salary-structure-intro, .module-note { color: #8791a4; font-size: 11px; line-height: 1.6; }
+.salary-structure-intro { margin: -5px 0 14px; }
+.module-note { margin: 12px 0 0; }
+.salary-structure-table { min-width: 920px; }
+.leave-approval-table { min-width: 760px; }
+.salary-employee { display: grid; gap: 3px; }
+.salary-employee strong { color: #34405a; }
+.salary-employee small { color: #8994a7; font-size: 9px; }
+.salary-input input { width: 120px; min-height: 34px; padding: 5px 8px; border: 1px solid #dfe5ef; border-radius: 7px; color: #34405a; background: #fff; }
+.leave-status { display: inline-block; padding: 4px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; }
+.status-pending { color: #9b6519; background: #fff4df; }
+.status-approved { color: #176b52; background: #eaf8f1; }
+.status-rejected { color: #a33e3c; background: #fff0ef; }
+.leave-approval-table .row-actions { white-space: nowrap; }
+.leave-request-form { display: grid; gap: 12px; margin-top: 13px; padding: 14px; border: 1px solid #e9edf4; border-radius: 10px; background: #fafbfe; }
+.leave-request-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.leave-request-form label { display: grid; min-width: 0; gap: 6px; color: #68758b; font-size: 11px; font-weight: 650; }
+.leave-request-form input, .leave-request-form textarea { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid #dfe5ef; border-radius: 7px; color: #34405a; background: #fff; }
+.leave-request-form textarea { resize: vertical; }
+.leave-form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.workspace.theme-dark .salary-employee strong { color: #e1e9f5; }
+.workspace.theme-dark .salary-employee small,
+.workspace.theme-dark .salary-structure-intro,
+.workspace.theme-dark .module-note { color: #98a8bd; }
+.workspace.theme-dark .salary-input input,
+.workspace.theme-dark .leave-request-form input,
+.workspace.theme-dark .leave-request-form textarea { border-color: #35445d; color: #e1e9f5; background: #0d1727; }
+.workspace.theme-dark .leave-request-form { border-color: #28374f; background: #111b2c; }
+.workspace.theme-dark .leave-request-form label { color: #aab8cc; }
+.workspace.theme-dark .status-pending { color: #f1c878; background: #392d1a; }
+.workspace.theme-dark .status-approved { color: #9be4c8; background: #142c2a; }
+.workspace.theme-dark .status-rejected { color: #ffb8b5; background: #301e27; }
+
+@media (max-width: 639px) {
+  .leave-request-fields { grid-template-columns: 1fr; }
+}

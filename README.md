@@ -16,9 +16,16 @@ The project includes a TypeScript/Preact single-page client, a Node.js/Express J
 
 ## Key features
 
+- Role-based Admin, HR and Employee workspaces, with role-specific routes at `/admin`, `/hr` and `/employee`.
+- Tab-scoped authentication that survives refreshes and is cleared on sign-out or when the browser tab closes.
+- Employee payslip PDF downloads and payroll reports.
+- Leave management with employee requests, an Admin approval-table preview and HR review tools.
+- HR salary breakdown previews with editable Basic, HRA, DA, PF and Tax components.
+
 ### Admin dashboard
 
 - Workforce overview with headcount, department mix, current monthly payroll cost and recent joiners.
+- Leave approval table with mock employee requests and interactive Approve/Reject statuses.
 - Workforce analytics with department headcount/payroll and a 12-month trend of audited employee-record removals.
 - Department creation and deletion, with deletion blocked while employees remain assigned.
 - Employee directory and role-protected employee administration.
@@ -32,6 +39,7 @@ The exit trend is based on employee records removed from the directory. It is no
 ### HR dashboard
 
 - Employee directory, attendance and leave administration.
+- Editable salary breakdown previews for Basic, HRA (40%), DA (10%), PF (12%) and Tax (5%). Preview edits do not update employee records or payroll.
 - Bulk employee import from validated CSV files (up to 200 rows per request).
 - Candidate pipeline with hiring stages.
 - Onboarding checklists, shift scheduling and training records.
@@ -41,6 +49,7 @@ The exit trend is based on employee records removed from the directory. It is no
 ### Employee dashboard
 
 - Personal profile, payslip history and PDF payslip downloads.
+- A quick leave-request form with date range and reason, plus submission feedback.
 - Downloadable annual payroll/tax summary based on recorded payroll.
 - Attendance check-in/out and monthly attendance calendar.
 - Team directory, announcements, notifications and helpdesk tickets.
@@ -51,10 +60,17 @@ The annual payroll/tax summary is informational. It is **not** a statutory Form 
 
 ## Technology stack
 
-- **Frontend:** Preact, TypeScript, Vite, Axios and responsive CSS.
-- **Backend:** Node.js and Express.
-- **Database:** MongoDB with Mongoose schemas and indexes.
-- **Authentication and authorization:** JWT (HS256), bcrypt password hashing, server-side session/version checks and role-based route middleware.
+| Layer | Technology |
+| --- | --- |
+| Frontend | Preact (React-compatible), TypeScript, Vite, Axios |
+| Backend | Node.js and Express |
+| Database | MongoDB (including MongoDB Atlas) with Mongoose |
+| Authentication | JWT (HS256), bcrypt password hashing and role-based authorization |
+
+The client uses Preact rather than React; it is React-compatible and runs with Vite.
+
+Additional project tooling and capabilities:
+
 - **Email:** Nodemailer with environment-configured SMTP for email verification and password-reset OTP delivery.
 - **Documents and exports:** Protected PDF download endpoints, jsPDF reports/payslips and CSV exports that open in spreadsheet tools.
 - **Deployment:** No production hosting configuration is included. Configure HTTPS, environment secrets, MongoDB access controls, backups, monitoring and an approved deployment platform before launch.
@@ -71,6 +87,16 @@ Replace these placeholders with sanitized screenshots. Never use real employee, 
 | HR dashboard | `screenshots/hr-dashboard.png` |
 | Employee dashboard | `screenshots/employee-dashboard.png` |
 
+## Demo accounts
+
+These are example email addresses, not pre-seeded credentials. Provision matching users in your own database before signing in; the project does not ship with shared demo passwords.
+
+| Role | Example email | Provisioning |
+| --- | --- | --- |
+| Admin | `admin@example.com` | Create the first administrator with the provisioning script below. |
+| HR | `hr@example.com` | Create an HR account from the Admin workspace. |
+| Employee | `employee@example.com` | Register an Employee account or create one from the Admin workspace. |
+
 ## Installation and setup
 
 ### Prerequisites
@@ -79,45 +105,36 @@ Replace these placeholders with sanitized screenshots. Never use real employee, 
 - A MongoDB instance (local or hosted).
 - SMTP credentials if email verification or password-reset email delivery is required.
 
-### 1. Install dependencies
-
-From the repository root:
+### 1. Clone the repository
 
 ```bash
-npm install
-cd server && npm install
-cd ../client && npm install
-cd ..
+git clone <repository-url>
+cd enterprise-hr-payroll-system
 ```
 
-### 2. Configure the server
+### 2. Configure and run the server
 
 ```bash
 cd server
+npm install
 cp .env.example .env
+npm run dev
 ```
 
-Set the local values in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters, a restricted MongoDB user, and SMTP credentials from a dedicated account. Never commit this file.
+Set `MONGO_URI` and `JWT_SECRET` in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters and a restricted MongoDB user. Configure SMTP variables in `server/.env` if email verification or password-reset delivery is needed. Never commit this file.
 
-### 3. Configure the client
+### 3. Configure and run the client
 
 ```bash
-cd ../client
-cp .env.example .env.local
+cd client
+npm install
+cp .env.example .env
+npm run dev
 ```
 
-The Vite development proxy forwards `/api` to the local API by default. Set `VITE_API_URL` only when the API uses a different base URL.
+Run the client and server in separate terminals. The Vite development proxy forwards `/api` to the local API by default. Set `VITE_API_URL` only when the API uses a different base URL.
 
-### 4. Run the application
-
-Run the API and client in separate terminals from the repository root:
-
-```bash
-npm run dev:server
-npm run dev:client
-```
-
-The development client URL is printed by Vite. To build the client and run backend tests:
+The development client URL is printed by Vite. From the repository root, build the client and run backend tests with:
 
 ```bash
 npm run build
