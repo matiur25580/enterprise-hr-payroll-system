@@ -141,12 +141,23 @@ export default function Attendance({
   }
 
   const recordTime = async (action: 'checkin' | 'checkout') => {
+    const time = new Date().toISOString()
+    const checkIn = action === 'checkin' ? time : employeeRecord?.checkIn
+    if (!checkIn) {
+      setError('Check in before checking out.')
+      return
+    }
+
     setIsSubmitting(true)
     setError('')
     try {
       const response = await axios.post<AttendanceRecord>(
-        `${apiUrl}/api/attendance/${action}`,
-        {},
+        `${apiUrl}/api/attendance`,
+        {
+          date: time.slice(0, 10),
+          checkIn,
+          checkOut: action === 'checkout' ? time : null,
+        },
         { headers: { Authorization: `Bearer ${token}` } },
       )
       const employee = employees[0]
@@ -173,7 +184,7 @@ export default function Attendance({
   return (
     <div className="attendance-workspace">
       <div className="attendance-summary">
-        <div><span className="eyebrow">TODAY’S ATTENDANCE</span><h2>{employeeSelfService ? 'Your workday' : 'Team attendance'}</h2></div>
+        <div><span className="eyebrow">TODAY’S ATTENDANCE</span><h2>{employeeSelfService ? 'Your workday' : 'Attendance review'}</h2></div>
         {!employeeSelfService && <span className="attendance-count">{presentCount}<small> / {employees.length} present</small></span>}
       </div>
       {employeeSelfService && employees[0] && (

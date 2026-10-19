@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'preact/hooks'
 import axios from 'axios'
-import { apiUrl } from '../services/api'
 import type { Role, UserSession } from '../utils/role'
+
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim().replace(/\/+$/, '')
+const authApiUrl = configuredApiUrl
+  ? configuredApiUrl.endsWith('/api') ? configuredApiUrl : `${configuredApiUrl}/api`
+  : '/api'
 
 type LoginResponse = {
   token: string
@@ -92,21 +96,35 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     setSecondsRemaining(0)
   }
 
-  const submitLogin = async (event: Event) => {
+  const handleSubmit = async (event: Event) => {
     event.preventDefault()
     setError('')
     setIsSubmitting(true)
+    const loginUrl = `${authApiUrl}/auth/login`
+    const absoluteLoginUrl = new URL(loginUrl, window.location.origin).href
 
     try {
       if (!selectedRole) {
         setError('Select your account role to continue.')
         return
       }
-      const response = await axios.post<LoginResponse>(`${apiUrl}/api/auth/login`, {
-        userId: userId.trim(),
-        password,
+      console.info('Authentication API URL:', absoluteLoginUrl)
+      const response = await axios.post<LoginResponse>(loginUrl, {
         role: selectedRole.toLowerCase(),
+        email: userId.trim(),
+        password,
       })
+      if (
+        typeof response.data.token !== 'string'
+        || !response.data.token
+        || !response.data.user
+        || typeof response.data.user.role !== 'string'
+        || typeof response.data.user.email !== 'string'
+        || typeof response.data.user.name !== 'string'
+      ) {
+        setError('The sign-in service returned an invalid response. Please try again.')
+        return
+      }
       const role = roleNames[response.data.user.role.trim().toLowerCase()]
       if (!role) {
         setError('This account has an unsupported role. Please contact your administrator.')
@@ -124,7 +142,12 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
         name: response.data.user.name,
       })
     } catch (requestFailure) {
-      setError(requestError(requestFailure, 'Unable to reach the sign-in service. Check your connection and try again.'))
+      console.error('Sign-in request failed:', requestFailure)
+      if (axios.isAxiosError(requestFailure) && !requestFailure.response) {
+        setError(`Backend not reachable at ${absoluteLoginUrl}`)
+      } else {
+        setError(requestError(requestFailure, 'Unable to reach the sign-in service. Check your connection and try again.'))
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -135,7 +158,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     setError('')
     setIsSubmitting(true)
     try {
-      await axios.post(`${apiUrl}/api/auth/register/request-otp`, {
+      await axios.post(`${authApiUrl}/auth/register/request-otp`, {
         ...signup,
         role: signup.role.toLowerCase(),
       })
@@ -153,7 +176,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     setError('')
     setIsSubmitting(true)
     try {
-      await axios.post(`${apiUrl}/api/auth/register/request-otp`, {
+      await axios.post(`${authApiUrl}/auth/register/request-otp`, {
         ...signup,
         role: signup.role.toLowerCase(),
       })
@@ -171,7 +194,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     setError('')
     setIsSubmitting(true)
     try {
-      const response = await axios.post<SignupResponse>(`${apiUrl}/api/auth/register/verify-otp`, {
+      const response = await axios.post<SignupResponse>(`${authApiUrl}/auth/register/verify-otp`, {
         email: signup.email.trim(),
         otp: signupOtp,
       })
@@ -191,7 +214,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     setSuccess('')
     setIsSubmitting(true)
     try {
-      const response = await axios.post<{ message: string; expiresIn?: number }>(`${apiUrl}/api/auth/password-reset/request-otp`, {
+      const response = await axios.post<{ message: string; expiresIn?: number }>(`${authApiUrl}/auth/password-reset/request-otp`, {
         userId: resetUserId.trim(),
         email: resetEmail.trim(),
       })
@@ -215,7 +238,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     }
     setIsSubmitting(true)
     try {
-      const response = await axios.post<{ message: string }>(`${apiUrl}/api/auth/password-reset/reset`, {
+      const response = await axios.post<{ message: string }>(`${authApiUrl}/auth/password-reset/reset`, {
         userId: resetUserId.trim(),
         email: resetEmail.trim(),
         otp: resetOtp,
@@ -242,7 +265,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
           <>
             <h1>Welcome back</h1>
             <p className="login-copy">Sign in to your secure people operations workspace.</p>
-            <form onSubmit={submitLogin}>
+            <form onSubmit={handleSubmit}>
               <label className="field-label" htmlFor="role">Account role</label>
               <select
                 id="role"
@@ -264,10 +287,11 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
               <label className="field-label" htmlFor="user-id">Email or Unique ID</label>
               <input
                 id="user-id"
+                type="text"
                 autoComplete="username"
                 placeholder="Enter your email or account ID"
                 value={userId}
-                onInput={(event) => setUserId(event.currentTarget.value)}
+                onChange={(event) => setUserId(event.currentTarget.value)}
                 required
               />
               <label className="field-label" htmlFor="password">Password</label>
@@ -278,7 +302,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
                   autoComplete="current-password"
                   placeholder="Enter your password"
                   value={password}
-                  onInput={(event) => setPassword(event.currentTarget.value)}
+                  onChange={(event) => setPassword(event.currentTarget.value)}
                   required
                 />
                 <button className="text-button" type="button" onClick={() => setShowPassword(!showPassword)}>

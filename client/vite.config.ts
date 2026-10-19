@@ -9,6 +9,11 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
+        configure(proxy) {
+          proxy.on('proxyReq', (proxyRequest) => {
+            proxyRequest.removeHeader('origin')
+          })
+        },
       },
     },
   },

@@ -23,7 +23,7 @@ const { verifyToken, authorize } = require('./middlewares/auth');
 
 const app = express();
 const allowedOrigins = new Set(
-  (process.env.CLIENT_ORIGINS || 'http://localhost:5173,http://localhost:4173')
+  (process.env.CLIENT_ORIGINS || 'http://localhost:5173,http://localhost:5175,http://localhost:5176,http://localhost:4173')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),

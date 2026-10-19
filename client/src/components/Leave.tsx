@@ -104,7 +104,7 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
 
   return (
     <div className="leave-workspace">
-      <h2>{employeeSelfService ? 'Request time off' : 'Employee leave requests'}</h2>
+      <h2>{employeeSelfService ? 'Request time off' : 'Review leave requests'}</h2>
       {employeeSelfService && (
         <form className="leave-form" onSubmit={applyLeave}>
           <label>
@@ -157,7 +157,7 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
                     {leave.status === 'Pending' ? (
                       <>
                         <button className="table-action" disabled={reviewingId === leave._id} onClick={() => void reviewLeave(leave, 'Approved')}>Approve</button>
-                        <button className="table-action danger-action" disabled={reviewingId === leave._id} onClick={() => void reviewLeave(leave, 'Rejected')}>Decline</button>
+                        <button className="table-action danger-action" disabled={reviewingId === leave._id} onClick={() => void reviewLeave(leave, 'Rejected')}>Reject</button>
                       </>
                     ) : 'Reviewed'}
                   </td>

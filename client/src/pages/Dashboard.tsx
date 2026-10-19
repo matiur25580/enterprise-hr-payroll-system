@@ -85,7 +85,7 @@ const roleContent: Record<Role, { title: string; description: string; nav: Array
       { id: 'overview', label: 'Overview', icon: '◫' },
       { id: 'people', label: 'People directory', icon: '♙' },
       { id: 'attendance', label: 'Attendance', icon: '◷' },
-      { id: 'leave', label: 'Leave management', icon: '▧' },
+      { id: 'leave', label: 'Review requests', icon: '▧' },
       { id: 'performance', label: 'Performance', icon: '↗' },
       { id: 'offers', label: 'Offer letters', icon: '✉' },
       { id: 'payroll', label: 'Payroll', icon: '▤' },
@@ -199,7 +199,7 @@ function Overview({
           <section className="panel">
             <div className="panel-heading"><div><span className="eyebrow">QUICK ACCESS</span><h2>Your work essentials</h2></div></div>
             <div className="quick-actions">
-              <button className="quick-action" onClick={() => onNavigate('payroll')}><span className="quick-icon blue-icon">▤</span><span><strong>View payslips</strong><small>Review pay details and download a PDF</small></span><b>→</b></button>
+              <button className="quick-action" onClick={() => onNavigate('payroll')}><span className="quick-icon blue-icon">▤</span><span><strong>View payslips</strong><small>Review pay details and download monthly payslips</small></span><b>→</b></button>
               <button className="quick-action" onClick={() => onNavigate('leave')}><span className="quick-icon purple-icon">▧</span><span><strong>Request time off</strong><small>Submit a leave request for review</small></span><b>→</b></button>
               <button className="quick-action" onClick={() => onNavigate('attendance')}><span className="quick-icon green-icon">◷</span><span><strong>Attendance</strong><small>Open your attendance workspace</small></span><b>→</b></button>
             </div>
@@ -568,9 +568,9 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
         </section>
       ) : <section className="panel empty-state"><h2>Profile not available</h2><p>Your HR team can help link your account to your employee record.</p></section>
     }
-    if (activeSection === 'payroll') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">{role === 'Employee' ? 'CONFIDENTIAL · PERSONAL' : 'COMPENSATION OPERATIONS'}</span><h2>{role === 'Employee' ? 'Your pay details' : 'Payroll register'}</h2></div></div><Payroll token={session.token} employeeSelfService={role === 'Employee'} onNotify={notify} onUnauthorized={onLogout} /></section>
+    if (activeSection === 'payroll') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">{role === 'Employee' ? 'CONFIDENTIAL · PERSONAL' : 'COMPENSATION OPERATIONS'}</span><h2>{role === 'Employee' ? 'Your pay details' : 'Payroll register'}</h2></div></div><Payroll token={session.token} employeeSelfService={role === 'Employee'} employee={role === 'Employee' ? employee : undefined} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'attendance') return <section className="panel module-panel"><Attendance employees={role === 'Employee' ? ownEmployees : employees} token={session.token} employeeSelfService={role === 'Employee'} onNotify={notify} onUnauthorized={onLogout} /></section>
-    if (activeSection === 'leave') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">{role === 'Employee' ? 'TIME OFF' : 'EMPLOYEE REQUESTS'}</span><h2>{role === 'Employee' ? 'My leave requests' : 'Leave management'}</h2></div></div><Leave token={session.token} employeeSelfService={role === 'Employee'} onNotify={notify} onUnauthorized={onLogout} /></section>
+    if (activeSection === 'leave') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">{role === 'Employee' ? 'TIME OFF' : 'EMPLOYEE REQUESTS'}</span><h2>{role === 'Employee' ? 'My leave requests' : role === 'HR' ? 'Review requests' : 'Leave management'}</h2></div></div><Leave token={session.token} employeeSelfService={role === 'Employee'} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'performance') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">GROWTH & DEVELOPMENT</span><h2>{role === 'Employee' ? 'My performance reviews' : 'Performance reviews'}</h2></div></div><Performance employees={role === 'Employee' ? ownEmployees : employees} token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'offers' && role !== 'Employee') return <section className="panel module-panel"><OfferLetter employees={employees} token={session.token} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'audit' && role === 'Admin') return <section className="panel module-panel"><AuditLog token={session.token} onUnauthorized={onLogout} /></section>

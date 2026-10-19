@@ -26,8 +26,23 @@ type PayrollRecord = {
 type PayrollProps = {
   token: string
   employeeSelfService: boolean
+  employee?: {
+    name: string
+    email: string
+    department: string
+    designation: string
+    salary: number
+  }
   onNotify: (message: string, tone?: 'success' | 'error') => void
   onUnauthorized: () => void
+}
+
+type EmployeePayslip = {
+  month: string
+  grossSalary: number
+  pf: number
+  tax: number
+  net: number
 }
 
 const currency = new Intl.NumberFormat('en-IN', {
@@ -54,7 +69,7 @@ const financialYearForMonth = (month: string) => {
 
 const currentFinancialYear = () => financialYearForMonth(currentMonth())
 
-export default function Payroll({ token, employeeSelfService, onNotify, onUnauthorized }: PayrollProps) {
+export default function Payroll({ token, employeeSelfService, employee, onNotify, onUnauthorized }: PayrollProps) {
   const [records, setRecords] = useState<PayrollRecord[]>([])
   const [month, setMonth] = useState(currentMonth)
   const [taxYear, setTaxYear] = useState(currentFinancialYear)
@@ -65,6 +80,19 @@ export default function Payroll({ token, employeeSelfService, onNotify, onUnauth
     () => [...new Set([currentFinancialYear(), ...records.map((record) => financialYearForMonth(record.month))])].sort().reverse(),
     [records],
   )
+  const employeePayslips = useMemo<EmployeePayslip[]>(() => {
+    if (!employee) return []
+    const grossSalary = Number(employee.salary) || 0
+    return Array.from({ length: 6 }, (_, index) => {
+      const date = new Date()
+      date.setDate(1)
+      date.setMonth(date.getMonth() - index)
+      const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      const pf = grossSalary * 0.12
+      const tax = grossSalary * 0.05
+      return { month, grossSalary, pf, tax, net: grossSalary - pf - tax }
+    })
+  }, [employee])
 
   const loadPayroll = async () => {
     try {
@@ -154,17 +182,62 @@ export default function Payroll({ token, employeeSelfService, onNotify, onUnauth
       doc.text(`Gross salary: ${currency.format(record.grossSalary)}`, 20, 80)
       doc.text(`Basic: ${currency.format(record.basic)}`, 20, 92)
       doc.text(`HRA: ${currency.format(record.hra)}`, 20, 102)
-      doc.text(`Provident fund: ${currency.format(record.pf)}`, 20, 112)
-      doc.text(`Tax: ${currency.format(record.tax)}`, 20, 122)
-      if (record.bonus) doc.text(`Bonus: ${currency.format(record.bonus)}`, 20, 132)
-      if (record.deduction) doc.text(`Other deductions: ${currency.format(record.deduction)}`, 20, 142)
+      if (record.bonus) doc.text(`Bonus: ${currency.format(record.bonus)}`, 20, 112)
+      const deductions = record.pf + record.tax + record.deduction
+      doc.text(`Total deductions: ${currency.format(deductions)}`, 20, 126)
+      doc.text(`Provident fund: ${currency.format(record.pf)}`, 20, 138)
+      doc.text(`Tax: ${currency.format(record.tax)}`, 20, 148)
+      if (record.deduction) doc.text(`Other deductions: ${currency.format(record.deduction)}`, 20, 158)
       doc.setFontSize(13)
-      doc.text(`Net payable: ${currency.format(record.net)}`, 20, 160)
+      doc.text(`Net pay: ${currency.format(record.net)}`, 20, 176)
       doc.setFontSize(10)
-      doc.text(`Payment status: ${record.status}`, 20, 172)
+      doc.text(`Payment status: ${record.status}`, 20, 188)
       doc.save(`${record.month}-${record.employeeName.replace(/[^a-z0-9-]/gi, '-')}-payslip.pdf`)
       logAudit('PAYSLIP', `Downloaded ${record.month} payslip for ${record.employeeName}`)
       onNotify(`Payslip for ${monthLabel(record.month)} downloaded successfully.`)
+    } catch (generationError) {
+      console.error('Could not create payslip PDF:', generationError)
+      onNotify('Could not create the payslip PDF. Please try again.', 'error')
+    }
+  }
+
+  const downloadEmployeePayslip = (payslip: EmployeePayslip) => {
+    if (!employee) {
+      onNotify('Your employee profile is not available. Please contact HR.', 'error')
+      return
+    }
+
+    try {
+      const doc = new jsPDF()
+      doc.setFontSize(18)
+      doc.text('Payslip', 20, 22)
+      doc.setFontSize(11)
+      let y = 38
+      const details = [
+        `Company: Northstar Workplace`,
+        `Employee name: ${employee.name}`,
+        `Work email: ${employee.email}`,
+        `Department: ${employee.department || '—'}`,
+        `Job title: ${employee.designation || '—'}`,
+        `Monthly gross salary: ${currency.format(payslip.grossSalary)}`,
+        `Annual salary: ${currency.format(payslip.grossSalary * 12)}`,
+        `Pay period: ${monthLabel(payslip.month)}`,
+        `Gross pay: ${currency.format(payslip.grossSalary)}`,
+        `Deductions: ${currency.format(payslip.pf + payslip.tax)}`,
+        `PF (12%): ${currency.format(payslip.pf)}`,
+        `Tax (5%): ${currency.format(payslip.tax)}`,
+        `Net pay: ${currency.format(payslip.net)}`,
+      ]
+      for (const detail of details) {
+        const lines = doc.splitTextToSize(detail, 170)
+        doc.text(lines, 20, y)
+        y += lines.length * 6 + 4
+      }
+      const safeName = employee.name.trim().replace(/[^a-z0-9-]+/gi, '-').replace(/^-|-$/g, '') || 'Employee'
+      const safeMonth = monthLabel(payslip.month).replace(/[^a-z0-9-]+/gi, '-').replace(/^-|-$/g, '')
+      doc.save(`Payslip_${safeName}_${safeMonth}.pdf`)
+      logAudit('PAYSLIP', `Downloaded ${payslip.month} demo payslip for ${employee.name}`)
+      onNotify(`Payslip for ${monthLabel(payslip.month)} downloaded successfully.`)
     } catch (generationError) {
       console.error('Could not create payslip PDF:', generationError)
       onNotify('Could not create the payslip PDF. Please try again.', 'error')
@@ -294,12 +367,22 @@ export default function Payroll({ token, employeeSelfService, onNotify, onUnauth
           <button className="secondary-button" type="button" onClick={downloadAnnualTaxSummary} disabled={!records.length}>Download tax summary</button>
         </section>
       )}
+      {employeeSelfService && (
+        <section className="employee-payslips">
+          <div className="employee-payslips-heading">
+            <div>
+              <h3>Recent payslips</h3>
+              <p>Monthly estimates use demo deductions of 12% for PF and 5% for tax.</p>
+            </div>
+          </div>
+        </section>
+      )}
       {error && <div className="notice-error" role="alert"><span>{error}</span><button onClick={() => void loadPayroll()}>Try again</button></div>}
       {loading ? (
         <div className="loading-state" role="status"><span className="loading-indicator" />Loading payroll records…</div>
       ) : (
         <div className="table-wrap">
-          <table>
+          <table className={employeeSelfService ? 'employee-payslip-table' : undefined}>
             <thead>
               <tr>
                 {!employeeSelfService && <th>Employee</th>}
@@ -308,12 +391,23 @@ export default function Payroll({ token, employeeSelfService, onNotify, onUnauth
                 <th>PF</th>
                 <th>Tax</th>
                 <th>Net payable</th>
-                <th>Status</th>
-                <th>Statement</th>
+                {!employeeSelfService && <th>Status</th>}
+                {employeeSelfService ? <th>Download</th> : <th>Statement</th>}
               </tr>
             </thead>
             <tbody>
-              {records.map((record) => (
+              {employeeSelfService ? employeePayslips.map((payslip) => (
+                <tr key={payslip.month}>
+                  <td>{monthLabel(payslip.month)}</td>
+                  <td>{currency.format(payslip.grossSalary)}</td>
+                  <td>{currency.format(payslip.pf)}</td>
+                  <td>{currency.format(payslip.tax)}</td>
+                  <td><strong>{currency.format(payslip.net)}</strong></td>
+                  <td className="payroll-actions">
+                    <button className="table-action payslip-download-button" type="button" aria-label={`Download ${monthLabel(payslip.month)} payslip as PDF`} onClick={() => downloadEmployeePayslip(payslip)}>PDF</button>
+                  </td>
+                </tr>
+              )) : records.map((record) => (
                 <tr key={record._id}>
                   {!employeeSelfService && <td>{record.employeeName}<small className="leave-email">{record.department} · {record.employeeEmail}</small></td>}
                   <td>{monthLabel(record.month)}</td>
@@ -330,7 +424,8 @@ export default function Payroll({ token, employeeSelfService, onNotify, onUnauth
                   </td>
                 </tr>
               ))}
-              {!records.length && <tr><td colSpan={employeeSelfService ? 7 : 8} className="table-empty">{employeeSelfService ? 'No payslips are available yet.' : 'No payroll runs yet. Select a pay period above to generate one.'}</td></tr>}
+              {employeeSelfService && !employeePayslips.length && <tr><td colSpan={6} className="table-empty">Your employee profile is not available yet.</td></tr>}
+              {!employeeSelfService && !records.length && <tr><td colSpan={8} className="table-empty">No payroll runs yet. Select a pay period above to generate one.</td></tr>}
             </tbody>
           </table>
         </div>
