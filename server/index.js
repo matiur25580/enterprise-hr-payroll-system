@@ -6,6 +6,7 @@ const { getHealth } = require('./controllers/health');
 
 const authRoutes = require('./routes/auth');
 const employeeRoutes = require('./routes/employees');
+const userRoutes = require('./routes/users');
 const activityRoutes = require('./routes/activity');
 const leaveRoutes = require('./routes/leaves');
 const attendanceRoutes = require('./routes/attendance');
@@ -30,8 +31,11 @@ const allowedOrigins = new Set(
 
 app.disable('x-powered-by');
 app.use(cors({
+  credentials: true,
   origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    if (!origin || allowedOrigins.has(origin) || /^https:\/\/.*\.app\.github\.dev$/.test(origin)) {
+      return callback(null, true);
+    }
     return callback(new Error('Origin is not allowed by CORS'));
   },
 }));
@@ -49,6 +53,7 @@ app.use((req, res, next) => {
 });
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/leaves', leaveRoutes);
 app.use('/api/attendance', attendanceRoutes);

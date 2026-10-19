@@ -105,6 +105,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
       const response = await axios.post<LoginResponse>(`${apiUrl}/api/auth/login`, {
         userId: userId.trim(),
         password,
+        role: selectedRole.toLowerCase(),
       })
       const role = roleNames[response.data.user.role.trim().toLowerCase()]
       if (!role) {
@@ -260,11 +261,11 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
                 <option value="HR">HR</option>
                 <option value="Employee">Employee</option>
               </select>
-              <label className="field-label" htmlFor="user-id">Unique ID</label>
+              <label className="field-label" htmlFor="user-id">Email or Unique ID</label>
               <input
                 id="user-id"
                 autoComplete="username"
-                placeholder="e.g. ADRA29081998"
+                placeholder="Enter your email or account ID"
                 value={userId}
                 onInput={(event) => setUserId(event.currentTarget.value)}
                 required

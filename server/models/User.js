@@ -6,6 +6,9 @@ const userSchema = new mongoose.Schema({
   phone: { type: String, unique: true, sparse: true, trim: true },
   dateOfBirth: { type: Date },
   password: { type: String, required: true },
+  department: { type: String, trim: true },
+  designation: { type: String, trim: true },
+  salary: { type: Number, min: 0 },
   tokenVersion: { type: Number, default: 0 },
   role: { type: String, enum: ['admin','hr','employee'], default: 'employee', lowercase: true, trim: true }
 }, { timestamps: true });

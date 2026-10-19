@@ -492,9 +492,12 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
           <div className="panel-heading"><div><span className="eyebrow">EMPLOYEE LIFECYCLE</span><h2>Add a team member</h2></div></div>
           <AddEmployee
             token={session.token}
-            onAdded={(employeeId) => {
+            role={role}
+            onAdded={({ employeeId, accountId, email }) => {
               void fetchEmployees()
-              notify(`Employee added successfully. Employee ID: ${employeeId}`)
+              notify(accountId
+                ? `Account created successfully. Account ID: ${accountId} · Email: ${email}`
+                : `Employee added successfully. Employee ID: ${employeeId}`)
             }}
             onUnauthorized={onLogout}
           />

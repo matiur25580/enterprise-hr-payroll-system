@@ -265,12 +265,18 @@ router.post('/password-reset/reset', async (req, res) => {
 
 router.post('/login', loginRateLimit, async (req, res) => {
   try {
-    const userId = normalizeUserId(req.body.userId);
+    const identifier = typeof req.body.email === 'string' ? req.body.email : req.body.userId;
+    const email = normalizeEmail(identifier);
+    const userId = normalizeUserId(identifier);
     const password = req.body.password;
-    if (!userId || typeof password !== 'string') return res.status(400).json({ message: 'Invalid credentials' });
+    const requestedRole = typeof req.body.role === 'string' ? req.body.role.trim().toLowerCase() : '';
+    if ((!email && !userId) || typeof password !== 'string'
+      || (req.body.role !== undefined && !['admin', 'hr', 'employee'].includes(requestedRole))) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
 
-    const user = await User.findOne({ userId });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    const user = await User.findOne(email.includes('@') ? { email } : { userId });
+    if (!user || (requestedRole && user.role !== requestedRole) || !(await bcrypt.compare(password, user.password))) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
