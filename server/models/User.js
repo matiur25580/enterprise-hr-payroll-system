@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema({
   designation: { type: String, trim: true },
   salary: { type: Number, min: 0 },
   tokenVersion: { type: Number, default: 0 },
-  role: { type: String, enum: ['admin','hr','employee'], default: 'employee', lowercase: true, trim: true }
+  role: { type: String, enum: ['admin','hr','employee'], default: 'employee', lowercase: true, trim: true },
+  status: { type: String, enum: ['pending', 'active', 'rejected'], default: 'active', lowercase: true, trim: true }
 }, { timestamps: true });
 module.exports = mongoose.model('User', userSchema);

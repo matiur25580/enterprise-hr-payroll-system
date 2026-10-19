@@ -126,6 +126,7 @@ async function createFirstAdmin({ name, email, password }) {
         userId,
         password: passwordHash,
         role: 'admin',
+        status: 'active',
       }], { session });
     }, {
       readPreference: 'primary',

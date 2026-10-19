@@ -14,19 +14,14 @@ type LoginResponse = {
 
 type SignupResponse = {
   message: string
-  user: { userId: string }
 }
 
 type Page = 'login' | 'signup' | 'forgot'
 
 type SignupForm = {
   name: string
-  role: 'Employee'
-  dateOfBirth: string
-  phone: string
   email: string
   password: string
-  confirmPassword: string
 }
 
 const roleNames: Record<string, Role> = {
@@ -37,12 +32,8 @@ const roleNames: Record<string, Role> = {
 
 const emptySignup: SignupForm = {
   name: '',
-  role: 'Employee',
-  dateOfBirth: '',
-  phone: '',
   email: '',
   password: '',
-  confirmPassword: '',
 }
 
 function requestError(error: unknown, fallback: string) {
@@ -61,10 +52,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [signup, setSignup] = useState<SignupForm>(emptySignup)
-  const [signupOtp, setSignupOtp] = useState('')
-  const [showSignupOtp, setShowSignupOtp] = useState(false)
-  const [signupSecondsRemaining, setSignupSecondsRemaining] = useState(0)
-  const [registeredId, setRegisteredId] = useState('')
+  const [signupComplete, setSignupComplete] = useState(false)
   const [resetUserId, setResetUserId] = useState('')
   const [resetEmail, setResetEmail] = useState('')
   const [resetOtp, setResetOtp] = useState('')
@@ -80,18 +68,11 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     return () => window.clearTimeout(timer)
   }, [page, resetCodeSent, secondsRemaining])
 
-  useEffect(() => {
-    if (!showSignupOtp || signupSecondsRemaining <= 0) return
-    const timer = window.setTimeout(() => setSignupSecondsRemaining((seconds) => seconds - 1), 1000)
-    return () => window.clearTimeout(timer)
-  }, [showSignupOtp, signupSecondsRemaining])
-
   const changePage = (nextPage: Page) => {
     setPage(nextPage)
     setError('')
     setSuccess('')
-    setShowSignupOtp(false)
-    setRegisteredId('')
+    setSignupComplete(false)
     setResetCodeSent(false)
     setSecondsRemaining(0)
   }
@@ -153,56 +134,20 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     }
   }
 
-  const requestSignupOtp = async (event: Event) => {
+  const submitSignup = async (event: Event) => {
     event.preventDefault()
     setError('')
     setIsSubmitting(true)
     try {
-      await axios.post(`${authApiUrl}/auth/register/request-otp`, {
-        ...signup,
-        role: signup.role.toLowerCase(),
-      })
-      setShowSignupOtp(true)
-      setSignupOtp('')
-      setSignupSecondsRemaining(60)
-    } catch (requestFailure) {
-      setError(requestError(requestFailure, 'Could not send a verification code. Please try again.'))
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const resendSignupOtp = async () => {
-    setError('')
-    setIsSubmitting(true)
-    try {
-      await axios.post(`${authApiUrl}/auth/register/request-otp`, {
-        ...signup,
-        role: signup.role.toLowerCase(),
-      })
-      setSignupOtp('')
-      setSignupSecondsRemaining(60)
-    } catch (requestFailure) {
-      setError(requestError(requestFailure, 'Could not resend the verification code. Please try again.'))
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const confirmSignup = async (event: Event) => {
-    event.preventDefault()
-    setError('')
-    setIsSubmitting(true)
-    try {
-      const response = await axios.post<SignupResponse>(`${authApiUrl}/auth/register/verify-otp`, {
+      const response = await axios.post<SignupResponse>(`${authApiUrl}/auth/register`, {
+        name: signup.name.trim(),
         email: signup.email.trim(),
-        otp: signupOtp,
+        password: signup.password,
       })
-      setShowSignupOtp(false)
-      setRegisteredId(response.data.user.userId)
-      setSuccess('Registration successful. Save your unique login ID:')
+      setSuccess(response.data.message)
+      setSignupComplete(true)
     } catch (requestFailure) {
-      setError(requestError(requestFailure, 'Could not verify the code. Please try again.'))
+      setError(requestError(requestFailure, 'Could not create your account. Please try again.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -323,26 +268,19 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
         {page === 'signup' && (
           <>
             <h1>Create account</h1>
-            <p className="login-copy">Verify your email to get your permanent workplace login ID.</p>
-            {success && <div className="signup-success" role="status">{success}<strong>{registeredId}</strong><button type="button" onClick={() => changePage('login')}>Continue to sign in</button></div>}
-            {!registeredId && (
-              <form onSubmit={requestSignupOtp}>
+            <p className="login-copy">Create an employee account to request access to your workplace.</p>
+            {signupComplete ? (
+              <div className="signup-success" role="status">{success}<button type="button" onClick={() => changePage('login')}>Continue to sign in</button></div>
+            ) : (
+              <form onSubmit={submitSignup}>
                 <label className="field-label" htmlFor="signup-name">Full name</label>
                 <input id="signup-name" autoComplete="name" value={signup.name} onInput={(event) => setSignup({ ...signup, name: event.currentTarget.value })} required />
-                <label className="field-label" htmlFor="signup-role">Account type</label>
-                <input id="signup-role" value="Employee" readOnly aria-readonly="true" />
-                <label className="field-label" htmlFor="signup-dob">Date of birth (DDMMYYYY)</label>
-                <input id="signup-dob" inputMode="numeric" maxLength={8} placeholder="DDMMYYYY" value={signup.dateOfBirth} onInput={(event) => setSignup({ ...signup, dateOfBirth: event.currentTarget.value.replace(/\D/g, '') })} required />
-                <label className="field-label" htmlFor="signup-phone">Contact number</label>
-                <input id="signup-phone" type="tel" autoComplete="tel" value={signup.phone} onInput={(event) => setSignup({ ...signup, phone: event.currentTarget.value })} required />
                 <label className="field-label" htmlFor="signup-email">Email address</label>
                 <input id="signup-email" type="email" autoComplete="email" value={signup.email} onInput={(event) => setSignup({ ...signup, email: event.currentTarget.value })} required />
                 <label className="field-label" htmlFor="signup-password">Password</label>
                 <input id="signup-password" type="password" autoComplete="new-password" minLength={8} value={signup.password} onInput={(event) => setSignup({ ...signup, password: event.currentTarget.value })} required />
-                <label className="field-label" htmlFor="signup-confirm-password">Confirm password</label>
-                <input id="signup-confirm-password" type="password" autoComplete="new-password" minLength={8} value={signup.confirmPassword} onInput={(event) => setSignup({ ...signup, confirmPassword: event.currentTarget.value })} required />
                 {error && <p className="form-error" role="alert">{error}</p>}
-                <button className="primary-button login-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Sending code…' : 'Submit'}</button>
+                <button className="primary-button login-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Creating account…' : 'Create account'}</button>
               </form>
             )}
             <p className="auth-switch">Already registered? <button type="button" onClick={() => changePage('login')}>Sign in</button></p>
@@ -381,23 +319,6 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
         )}
       </section>
 
-      {showSignupOtp && (
-        <div className="otp-backdrop">
-          <section className="otp-dialog" role="dialog" aria-modal="true" aria-labelledby="signup-otp-title">
-            <h2 id="signup-otp-title">Verify your email</h2>
-            <p>Enter the 4-digit code sent to {signup.email}.</p>
-            <form onSubmit={confirmSignup}>
-              <label className="field-label" htmlFor="signup-otp">4-digit verification code</label>
-              <input id="signup-otp" inputMode="numeric" autoComplete="one-time-code" maxLength={4} value={signupOtp} onInput={(event) => setSignupOtp(event.currentTarget.value.replace(/\D/g, ''))} required />
-              <p className="otp-timer" aria-live="polite">{signupSecondsRemaining > 0 ? `Code expires in 00:${String(signupSecondsRemaining).padStart(2, '0')}` : 'This code has expired.'}</p>
-              {signupSecondsRemaining === 0 && <button className="forgot-link" type="button" disabled={isSubmitting} onClick={() => void resendSignupOtp()}>{isSubmitting ? 'Sending…' : 'Resend code'}</button>}
-              {error && <p className="form-error" role="alert">{error}</p>}
-              <button className="primary-button login-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Verifying…' : 'Verify and register'}</button>
-              <button className="forgot-link otp-cancel" type="button" onClick={() => { setShowSignupOtp(false); setError('') }}>Cancel</button>
-            </form>
-          </section>
-        </div>
-      )}
     </main>
   )
 }

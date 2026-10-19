@@ -34,7 +34,7 @@ type Employee = {
   joiningDate?: string
 }
 
-type Section = 'overview' | 'people' | 'profile' | 'payroll' | 'attendance' | 'leave' | 'performance' | 'offers' | 'audit' | 'announcements' | 'support' | 'team' | 'import' | 'notifications' | 'peopleOps' | 'departments' | 'analytics' | 'documents' | 'salary'
+type Section = 'overview' | 'people' | 'profile' | 'payroll' | 'attendance' | 'leave' | 'performance' | 'offers' | 'audit' | 'announcements' | 'support' | 'team' | 'import' | 'notifications' | 'peopleOps' | 'departments' | 'analytics' | 'documents' | 'salary' | 'pendingApprovals'
 
 type DashboardProps = {
   session: UserSession
@@ -52,6 +52,13 @@ type Activity = {
   createdAt: string
 }
 
+type PendingApproval = {
+  _id: string
+  name: string
+  email: string
+  createdAt: string
+}
+
 const currency = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',
@@ -64,6 +71,7 @@ const roleContent: Record<Role, { title: string; description: string; nav: Array
     description: 'Company-wide workforce, payroll and operational controls.',
     nav: [
       { id: 'overview', label: 'Overview', icon: '◫' },
+      { id: 'pendingApprovals', label: 'Pending approvals', icon: '✓' },
       { id: 'people', label: 'Workforce', icon: '♙' },
       { id: 'departments', label: 'Departments', icon: '◫' },
       { id: 'analytics', label: 'Workforce analytics', icon: '▥' },
@@ -140,6 +148,7 @@ const titleForSection: Record<Section, string> = {
   analytics: 'Workforce analytics',
   documents: 'Documents',
   salary: 'Salary structure',
+  pendingApprovals: 'Pending approvals',
 }
 
 function StatCard({ label, value, note, icon, tone = 'blue' }: { label: string; value: string; note: string; icon: string; tone?: string }) {
@@ -149,6 +158,104 @@ function StatCard({ label, value, note, icon, tone = 'blue' }: { label: string; 
       <strong>{value}</strong>
       <small>{note}</small>
     </article>
+  )
+}
+
+function PendingApprovals({ token, onNotify, onUnauthorized }: {
+  token: string
+  onNotify: (message: string, tone?: Feedback['tone']) => void
+  onUnauthorized: () => void
+}) {
+  const [users, setUsers] = useState<PendingApproval[]>([])
+  const [roles, setRoles] = useState<Record<string, 'hr' | 'employee'>>({})
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [savingId, setSavingId] = useState('')
+
+  useEffect(() => {
+    let active = true
+    axios.get<PendingApproval[]>(`${apiUrl}/api/users/pending-approvals`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((response) => {
+      if (!active) return
+      setUsers(response.data)
+      setRoles(Object.fromEntries(response.data.map((user) => [user._id, 'employee'])))
+    }).catch((error: unknown) => {
+      if (!active) return
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        onUnauthorized()
+        return
+      }
+      const message = axios.isAxiosError<{ message?: string }>(error)
+        ? error.response?.data?.message ?? 'Could not load pending approvals.'
+        : 'Could not load pending approvals.'
+      setLoadError(message)
+    }).finally(() => {
+      if (active) setLoading(false)
+    })
+    return () => { active = false }
+  }, [token, onUnauthorized])
+
+  const decide = async (user: PendingApproval, status: 'active' | 'rejected') => {
+    setSavingId(user._id)
+    try {
+      const response = await axios.patch<{ message: string }>(
+        `${apiUrl}/api/users/pending-approvals/${user._id}`,
+        { status, role: roles[user._id] || 'employee' },
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      setUsers((current) => current.filter((pending) => pending._id !== user._id))
+      onNotify(response.data.message)
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        onUnauthorized()
+      } else {
+        const message = axios.isAxiosError<{ message?: string }>(error)
+          ? error.response?.data?.message ?? 'Could not update this account.'
+          : 'Could not update this account.'
+        onNotify(message, 'error')
+      }
+    } finally {
+      setSavingId('')
+    }
+  }
+
+  return (
+    <section className="panel module-panel">
+      <div className="panel-heading"><div><span className="eyebrow">ACCOUNT ACCESS</span><h2>Pending approvals</h2></div></div>
+      {loading ? <p className="muted-copy" role="status">Loading pending accounts…</p>
+        : loadError ? <p className="form-error" role="alert">{loadError}</p>
+          : users.length ? (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead><tr><th>Applicant</th><th>Requested</th><th>Assign role</th><th>Actions</th></tr></thead>
+                <tbody>{users.map((user) => (
+                  <tr key={user._id}>
+                    <td><div className="person-cell"><span className="avatar">{user.name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()}</span><span><strong>{user.name}</strong><small>{user.email}</small></span></div></td>
+                    <td>{new Date(user.createdAt).toLocaleDateString()}</td>
+                    <td>
+                      <select
+                        aria-label={`Role for ${user.name}`}
+                        value={roles[user._id] || 'employee'}
+                        onChange={(event) => setRoles((current) => ({
+                          ...current,
+                          [user._id]: event.currentTarget.value === 'hr' ? 'hr' : 'employee',
+                        }))}
+                      >
+                        <option value="employee">Employee</option>
+                        <option value="hr">HR</option>
+                      </select>
+                    </td>
+                    <td className="row-actions">
+                      <button className="table-action" disabled={savingId === user._id} onClick={() => void decide(user, 'active')}>{savingId === user._id ? 'Saving…' : 'Approve'}</button>
+                      <button className="table-action danger-action" disabled={savingId === user._id} onClick={() => void decide(user, 'rejected')}>Reject</button>
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          ) : <p className="muted-copy">There are no accounts waiting for approval.</p>}
+    </section>
   )
 }
 
@@ -598,6 +705,9 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
       onNotify={notify}
     />
     if (activeSection === 'people' && role !== 'Employee') return renderPeople()
+    if (activeSection === 'pendingApprovals' && role === 'Admin') {
+      return <PendingApprovals token={session.token} onNotify={notify} onUnauthorized={onLogout} />
+    }
     if (activeSection === 'profile' && role === 'Employee') {
       return employee ? (
         <section className="panel profile-detail">

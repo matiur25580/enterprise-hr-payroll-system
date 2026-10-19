@@ -95,7 +95,7 @@ These are example email addresses, not pre-seeded credentials. Provision matchin
 | --- | --- | --- |
 | Admin | `admin@example.com` | Create the first administrator with the provisioning script below. |
 | HR | `hr@example.com` | Create an HR account from the Admin workspace. |
-| Employee | `employee@example.com` | Register an Employee account or create one from the Admin workspace. |
+| Employee | `employee@example.com` | Register an account and wait for Admin approval, or have an Admin create one. |
 
 ## Installation and setup
 
@@ -103,7 +103,7 @@ These are example email addresses, not pre-seeded credentials. Provision matchin
 
 - Node.js 20 or later and npm.
 - A MongoDB instance (local or hosted).
-- SMTP credentials if email verification or password-reset email delivery is required.
+- SMTP credentials if password-reset email delivery is required.
 
 ### 1. Clone the repository
 
@@ -121,7 +121,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Set `MONGO_URI` and `JWT_SECRET` in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters and a restricted MongoDB user. Configure SMTP variables in `server/.env` if email verification or password-reset delivery is needed. Never commit this file.
+Set `MONGO_URI` and `JWT_SECRET` in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters and a restricted MongoDB user. Configure SMTP variables in `server/.env` if password-reset email delivery is needed. Never commit this file.
 
 ### 3. Configure and run the client
 
@@ -151,10 +151,10 @@ The server defaults CORS to `*` when `CLIENT_URL` is unset. Set `CLIENT_URL` to 
 
 ### Provisioning the first Admin
 
-Public registration creates employee accounts only. Provision the first Admin from a trusted terminal after configuring `server/.env` with the target `MONGO_URI`:
+Public registration creates employee accounts with pending status; an Admin must approve each account and assign the Employee or HR role before sign-in is enabled. The first Admin cannot be created through public registration. Provision that account from a trusted terminal after configuring `server/.env` with the target `MONGO_URI`:
 
 ```bash
-node server/scripts/createAdmin.js
+npm --prefix server run seed:admin
 ```
 
 The CLI securely prompts for the Admin's name, email address and password (password entry is masked). Use a password of 14–72 characters (at most 72 UTF-8 bytes) with uppercase and lowercase letters, a number and a symbol, and no spaces. The password is hashed with bcrypt before the user is saved. Provisioning is refused if an Admin account already exists. The script uses a MongoDB transaction and a unique provisioning claim to ensure only one first Admin can be created; the target MongoDB deployment must support transactions (MongoDB Atlas or a replica set).

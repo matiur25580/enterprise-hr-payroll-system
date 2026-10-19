@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
 const Employee = require('../models/Employee');
 const User = require('../models/User');
 const { verifyToken, authorize } = require('../middlewares/auth');
@@ -9,6 +10,47 @@ const recordAudit = require('../utils/audit');
 const router = express.Router();
 const rolePrefixes = { admin: 'AD', hr: 'HR', employee: 'EM' };
 const validRoles = new Set(Object.keys(rolePrefixes));
+
+router.get('/pending-approvals', verifyToken, authorize('admin'), async (req, res) => {
+  try {
+    const users = await User.find({ status: 'pending' })
+      .select('name email createdAt')
+      .sort({ createdAt: 1 })
+      .lean();
+    return res.json(users);
+  } catch (error) {
+    console.error('Could not load pending account approvals:', error);
+    return res.status(500).json({ message: 'Could not load pending account approvals.' });
+  }
+});
+
+router.patch('/pending-approvals/:id', verifyToken, authorize('admin'), async (req, res) => {
+  const { status, role } = req.body;
+  if (!mongoose.isValidObjectId(req.params.id)
+    || !['active', 'rejected'].includes(status)
+    || !['hr', 'employee'].includes(role)) {
+    return res.status(400).json({ message: 'Choose a valid approval decision and role.' });
+  }
+
+  try {
+    const user = await User.findOneAndUpdate(
+      { _id: req.params.id, status: 'pending' },
+      { $set: { status, role } },
+      { new: true, runValidators: true },
+    ).select('name email role status');
+    if (!user) return res.status(404).json({ message: 'This account is no longer pending approval.' });
+    return res.json({
+      message: status === 'active' ? 'Account approved successfully.' : 'Account rejected.',
+      user,
+    });
+  } catch (error) {
+    if (error.name === 'ValidationError' || error.name === 'CastError') {
+      return res.status(400).json({ message: 'Approval data is invalid.' });
+    }
+    console.error('Could not update pending account approval:', error);
+    return res.status(500).json({ message: 'Could not update the account approval.' });
+  }
+});
 
 router.post('/create-by-admin', verifyToken, authorize('admin'), async (req, res) => {
   const name = typeof req.body.name === 'string' ? req.body.name.trim().replace(/\s+/g, ' ') : '';
@@ -42,6 +84,7 @@ router.post('/create-by-admin', verifyToken, authorize('admin'), async (req, res
       email,
       password: await bcrypt.hash(password, 10),
       role,
+      status: 'active',
       department,
       designation,
       salary,
