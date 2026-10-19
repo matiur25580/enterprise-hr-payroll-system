@@ -124,11 +124,15 @@ npm run build
 npm test
 ```
 
-Public registration creates employee accounts only. Admin and HR accounts must be provisioned through a trusted process.
+### Provisioning the first Admin
 
-### Optional local demo seed
+Public registration creates employee accounts only. Provision the first Admin from a trusted terminal after configuring `server/.env` with the target `MONGO_URI`:
 
-Demo seeding is disabled by default and only runs in `NODE_ENV=development`. To enable it locally, set `ENABLE_DEMO_SEED=true` and provide the three demo email/password pairs listed in the environment-variable section. Each demo password must be unique and at least 16 characters. Do not enable demo seeding against shared or production databases.
+```bash
+node server/scripts/createAdmin.js
+```
+
+The CLI securely prompts for the Admin's name, email address and password (password entry is masked). Use a password of 14–72 characters (at most 72 UTF-8 bytes) with uppercase and lowercase letters, a number and a symbol, and no spaces. The password is hashed with bcrypt before the user is saved. Provisioning is refused if an Admin account already exists. The script uses a MongoDB transaction and a unique provisioning claim to ensure only one first Admin can be created; the target MongoDB deployment must support transactions (MongoDB Atlas or a replica set).
 
 ## Environment variables
 
@@ -138,7 +142,6 @@ Names only; values belong in ignored local files or a managed secret store.
 
 - `PORT`
 - `NODE_ENV`
-- `ENABLE_DEMO_SEED`
 - `MONGO_URI`
 - `JWT_SECRET`
 - `CLIENT_ORIGINS`
@@ -148,12 +151,6 @@ Names only; values belong in ignored local files or a managed secret store.
 - `EMAIL_USER`
 - `EMAIL_PASS`
 - `EMAIL_FROM`
-- `DEMO_ADMIN_EMAIL`
-- `DEMO_ADMIN_PASSWORD`
-- `DEMO_HR_EMAIL`
-- `DEMO_HR_PASSWORD`
-- `DEMO_EMPLOYEE_EMAIL`
-- `DEMO_EMPLOYEE_PASSWORD`
 
 ### Client
 
