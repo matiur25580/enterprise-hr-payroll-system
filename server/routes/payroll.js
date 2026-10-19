@@ -32,6 +32,22 @@ router.get('/', verifyToken, authorize('admin', 'hr', 'employee'), async (req, r
   }
 });
 
+router.get('/summary', verifyToken, authorize('admin', 'hr', 'employee'), async (req, res) => {
+  try {
+    const match = req.user.role === 'employee'
+      ? { employeeEmail: String(req.user.email).toLowerCase() }
+      : {};
+    const [summary] = await Payroll.aggregate([
+      { $match: match },
+      { $group: { _id: null, total: { $sum: '$grossSalary' } } },
+    ]);
+    return res.json({ total: summary?.total ?? 0 });
+  } catch (error) {
+    console.error('Could not load payroll summary:', error);
+    return res.status(500).json({ message: 'Could not load payroll summary.' });
+  }
+});
+
 router.post('/generate', verifyToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     const { month } = req.body;
