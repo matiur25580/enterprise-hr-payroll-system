@@ -16,19 +16,22 @@ const verifyToken = async (req, res, next) => {
   } catch {
     return res.status(401).json({ message: 'Invalid token' });
   }
+
+  const normalizedRole = typeof decoded?.role === 'string' ? decoded.role.trim().toLowerCase() : '';
   if (!decoded || typeof decoded !== 'object' || !mongoose.isValidObjectId(decoded.id)
-    || !['admin', 'hr', 'employee'].includes(decoded.role)
+    || !['admin', 'hr', 'employee'].includes(normalizedRole)
     || typeof decoded.email !== 'string' || !Number.isInteger(decoded.tokenVersion)) {
     return res.status(401).json({ message: 'Invalid token' });
   }
 
   try {
     const user = await User.findById(decoded.id).select('name role email tokenVersion').lean();
-    if (!user || decoded.role !== user.role || decoded.email !== user.email
+    const normalizedUserRole = typeof user?.role === 'string' ? user.role.trim().toLowerCase() : '';
+    if (!user || normalizedRole !== normalizedUserRole || decoded.email !== user.email
       || decoded.tokenVersion !== (user.tokenVersion ?? 0)) {
       return res.status(401).json({ message: 'Your session is no longer valid. Please sign in again.' });
     }
-    req.user = { id: String(user._id), name: user.name, role: user.role, email: user.email };
+    req.user = { id: String(user._id), name: user.name, role: normalizedUserRole, email: user.email };
     return next();
   } catch (error) {
     console.error('Could not validate authenticated user:', error);
@@ -37,8 +40,10 @@ const verifyToken = async (req, res, next) => {
 };
 
 const authorize = (...roles)=>{
+  const allowedRoles = roles.map((role) => String(role).trim().toLowerCase());
   return (req,res,next)=>{
-    if (!req.user || !roles.includes(req.user.role)) {
+    const requestedRole = typeof req.user?.role === 'string' ? req.user.role.trim().toLowerCase() : '';
+    if (!req.user || !allowedRoles.includes(requestedRole)) {
       return res.status(403).json({ message: 'Access denied' });
     }
     return next();

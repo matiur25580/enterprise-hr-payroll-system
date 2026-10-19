@@ -1,15 +1,20 @@
 const maxDocumentBytes = 512 * 1024;
-const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+const base64Pattern = /^(?:[A-Za-z0-9+/]+={0,2})$/;
 
 function decodePdfDocument(value) {
+  if (typeof value !== 'string') return null;
+
+  const normalizedValue = value.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
   if (
-    typeof value !== 'string'
-    || value.length > Math.ceil(maxDocumentBytes * 4 / 3) + 4
-    || !base64Pattern.test(value)
+    !normalizedValue
+    || normalizedValue.length > Math.ceil(maxDocumentBytes * 4 / 3) + 4
+    || normalizedValue.length % 4 === 1
+    || !base64Pattern.test(normalizedValue)
   ) {
     return null;
   }
-  const content = Buffer.from(value, 'base64');
+
+  const content = Buffer.from(normalizedValue, 'base64');
   if (
     !content.length
     || content.length > maxDocumentBytes
