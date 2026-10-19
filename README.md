@@ -1,29 +1,121 @@
-# enterprise-hr-payroll-system
+# Smart HR & Payroll Management System
 
-## Run locally
+**A responsive, role-based people operations workspace for managing employee records, attendance, leave, performance and payroll.**
 
-Start the API from `server/` with `npm run dev`, then start the client from
-`client/` with `npm run dev`. The Vite development server forwards `/api`
-requests to `http://localhost:5000`. For a separately hosted API, set
-`VITE_API_URL` in the client environment to its base URL.
+![MERN](https://img.shields.io/badge/stack-MERN-3c873a)
+![JWT](https://img.shields.io/badge/auth-JWT-blue)
+![MongoDB](https://img.shields.io/badge/database-MongoDB-47A248)
+
+## Overview
+
+Smart HR & Payroll is a web application for small and mid-sized organizations. It gives administrators, HR teams and employees separate workspaces for day-to-day workforce management and self-service. The application has a Preact/TypeScript client, an Express API and MongoDB persistence.
 
 ## Role dashboards
 
-Sign in with an account created through the API. The account's server-assigned
-role opens a dedicated workspace:
+### Admin
 
-- **Admin** — organization overview, workforce administration, payroll,
-  attendance, leave, performance, offer letters, and the audit trail.
-- **HR** — people operations, employee records, attendance, leave, performance,
-  offer letters, and payroll tools.
-- **Employee** — personal profile, payslips, attendance, and leave self-service.
+- Review workforce and payroll summaries.
+- Manage employee records, attendance, leave, offer letters and performance reviews.
+- Publish organization announcements.
+- Review an administrative audit trail and support queue.
 
-Employee accounts can only retrieve their own employee record. If an existing
-session was created before role-based account details were enabled, sign in
-again to refresh it.
+### HR
 
-In development (`NODE_ENV` is not `production`), the server provisions these
-demo accounts at startup. Sign in with the listed ID and password:
+- Manage employee records, attendance, leave, offers and payroll operations.
+- Import employees from validated CSV files.
+- Create and review quarterly performance records.
+- Triage employee support requests and view company announcements.
+
+### Employee
+
+- View personal profile and saved payslips.
+- Review attendance and submit leave requests.
+- Browse the team directory and company announcements.
+- Raise and follow up on HR/helpdesk support requests.
+
+## Key features
+
+- Role-aware dashboards and server-enforced API authorization.
+- Employee directory, search, CSV export and bulk import.
+- Attendance check-in/out and calendar views.
+- Leave request and review workflow.
+- Monthly payroll snapshots and employee payslip downloads.
+- Quarterly performance reviews.
+- Admin audit events, announcements and employee support tickets.
+- Responsive layouts, loading/empty/error states and a consistent dark theme.
+
+## Technology
+
+- **Frontend:** Preact, TypeScript, Vite, Axios and CSS.
+- **Backend:** Node.js and Express.
+- **Database:** MongoDB with Mongoose.
+- **Authentication:** JSON Web Tokens and bcrypt password hashing.
+- **Email:** Nodemailer with configurable SMTP for verification and password reset.
+- **Deployment:** Configure the client and API for your hosting provider; production deployment and monitoring are not included in this repository.
+
+## Screenshots and demo
+
+Add screenshots or hosted image links here. Do not include real employee or payroll data.
+
+| View | Screenshot |
+| --- | --- |
+| Login | `screenshots/login.png` |
+| Signup | `screenshots/signup.png` |
+| Admin dashboard | `screenshots/admin-dashboard.png` |
+| HR dashboard | `screenshots/hr-dashboard.png` |
+| Employee dashboard | `screenshots/employee-dashboard.png` |
+
+**Demo video:** [Add a demo video link](https://example.com/)
+
+## Installation and setup
+
+### Prerequisites
+
+- Node.js 20 or later and npm.
+- MongoDB, local or hosted.
+- SMTP credentials for account verification and password reset (optional for local development).
+
+### 1. Configure the server
+
+```bash
+cd server
+npm install
+cp .env.example .env
+```
+
+Set the required values in `server/.env`; use your own local database and newly generated development credentials.
+
+### 2. Configure the client
+
+```bash
+cd ../client
+npm install
+cp .env.example .env
+```
+
+The development client proxies `/api` to `http://localhost:5000`. Set `VITE_API_URL` only when the API is hosted at a different base URL.
+
+### 3. Start the application
+
+In one terminal:
+
+```bash
+cd server
+npm run dev
+```
+
+In another terminal:
+
+```bash
+cd client
+npm run dev
+```
+
+The Vite terminal prints the local client URL. Public registration creates employee accounts only; administrator and HR roles must be provisioned through a trusted server-side process.
+
+### Development demo accounts
+
+The server seeds the following sample accounts in non-production environments only:
 
 | Role | Login ID | Password |
 | --- | --- | --- |
@@ -31,38 +123,48 @@ demo accounts at startup. Sign in with the listed ID and password:
 | HR | `HRHM02021985` | `hr123` |
 | Employee | `EMEU03031990` | `emp123` |
 
-Choose the matching role on the login form. The server verifies the account
-role before signing in and opens that role's workspace. New users can register
-with a verified email address; their uneditable login ID is generated as the
-role prefix (`AD`, `HR`, or `EM`), first/last name initials and birth date
-(`DDMMYYYY`), for example `ADRA29081998`. Employees added by HR/Admin receive
-a separate unique `EMP-...` employee ID, and an employee account is linked to
-its profile using the work email address. These demo credentials are for local
-development only; do not use them in production. If a production-like demo deployment
-explicitly needs these accounts, set `ENABLE_DEMO_USERS=true` for the server
-or run `npm run seed:demo` from `server/` once after configuring its database
-connection. Provisioning these accounts resets their passwords to the demo
-values above.
+These public demo credentials are for local development and must never be used in production.
 
-Email verification and password reset require SMTP settings in the server
-environment: `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, and `EMAIL_PASS`.
-Optionally set `EMAIL_FROM` and set `EMAIL_SECURE=true` when your SMTP server
-requires TLS on a port other than 465. Four-digit verification codes expire
-after 60 seconds. Do not commit SMTP credentials.
+## Environment variables
 
-Each role dashboard has a role-specific portal heading and a light/dark mode
-toggle; the selected theme is remembered separately for each role. Login,
-employee, attendance, leave, payroll, performance, document, and export actions
-show success feedback when completed.
+Variable names only; configure values locally and never commit them.
 
-Employee directory changes and leave requests/reviews are also recorded as
-workplace updates. Admin and HR users can see organization-wide updates, while
-employee accounts only see updates related to their own employee record. Open
-dashboards refresh updates automatically, and compensation changes are
-described without exposing salary amounts in the activity feed. Leave requests
-are stored in the database, submitted by the signed-in employee, and reviewable
-by HR or Admin. Attendance check-in/out and HR/Admin attendance corrections are
-stored per employee and date. HR/Admin can generate monthly payroll snapshots
-and mark them paid; employees can only view and download their own saved
-payslips. The feed records a payment-status update without exposing salary
-amounts.
+### Server
+
+- `PORT`
+- `NODE_ENV`
+- `MONGO_URI`
+- `JWT_SECRET`
+- `CLIENT_ORIGINS`
+- `EMAIL_HOST`
+- `EMAIL_PORT`
+- `EMAIL_USER`
+- `EMAIL_PASS`
+- `EMAIL_FROM`
+- `EMAIL_SECURE`
+
+### Client
+
+- `VITE_API_URL`
+
+## Security notes
+
+- `.env`, `.env.local`, dependency folders and generated build output are ignored by Git.
+- `.env.example` files contain placeholders only. Replace placeholders locally.
+- Never commit MongoDB credentials, SMTP/app passwords, JWT signing keys, OTP material or production data.
+- Rotate credentials immediately if they have ever been committed. Removing a file from the latest revision does not remove it from earlier Git history; clean history and coordinate any remote history rewrite before pushing.
+- Keep this repository private if it contains internal code. Do not expose production user or payroll data in screenshots or demo environments.
+
+## Payroll limitations
+
+Payroll figures are simplified application estimates and are not a jurisdiction-specific statutory payroll or tax calculation. Validate all deductions, tax documents and payslips with qualified payroll professionals before using them operationally.
+
+## Roadmap
+
+- Recruitment pipeline and candidate tracking.
+- Onboarding checklists, shift/rota planning and training records.
+- A controlled production workflow for provisioning administrator and HR accounts.
+- Department management and historical headcount/attrition analytics.
+- Jurisdiction-specific payroll, tax documents and secure document storage.
+- XLSX/PDF reporting, configurable approval workflows and centralized rate limiting.
+- Production deployment automation, backups, monitoring and accessibility review.

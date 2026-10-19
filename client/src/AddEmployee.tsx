@@ -64,6 +64,7 @@ export default function AddEmployee({ token, onAdded, onUnauthorized }: AddEmplo
     <form onSubmit={submit} style={{ display: 'flex', gap: 8, margin: '15px 0', flexWrap: 'wrap' }}>
       <input
         placeholder="Name"
+        maxLength={120}
         value={form.name}
         onChange={(event) => setForm({ ...form, name: event.currentTarget.value })}
         required
@@ -71,18 +72,21 @@ export default function AddEmployee({ token, onAdded, onUnauthorized }: AddEmplo
       <input
         placeholder="Email"
         type="email"
+        maxLength={254}
         value={form.email}
         onChange={(event) => setForm({ ...form, email: event.currentTarget.value })}
         required
       />
       <input
         placeholder="Department"
+        maxLength={120}
         value={form.department}
         onChange={(event) => setForm({ ...form, department: event.currentTarget.value })}
         required
       />
       <input
         placeholder="Designation"
+        maxLength={120}
         value={form.designation}
         onChange={(event) => setForm({ ...form, designation: event.currentTarget.value })}
         required
@@ -91,6 +95,7 @@ export default function AddEmployee({ token, onAdded, onUnauthorized }: AddEmplo
         placeholder="Salary"
         type="number"
         min="0"
+        step="0.01"
         value={form.salary}
         onChange={(event) => setForm({ ...form, salary: event.currentTarget.value })}
         required

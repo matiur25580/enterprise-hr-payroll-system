@@ -1,8 +1,10 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Employee = require('../models/Employee');
 const Payroll = require('../models/Payroll');
 const { verifyToken, authorize } = require('../middleware/auth');
 const recordWorkplaceActivity = require('../utils/activity');
+const recordAudit = require('../utils/audit');
 
 const router = express.Router();
 
@@ -65,6 +67,7 @@ router.post('/generate', verifyToken, authorize('admin', 'hr'), async (req, res)
     if (!created.length) {
       return res.status(409).json({ message: `Payroll for ${month} has already been generated` });
     }
+    await recordAudit(req, 'generated', 'payroll', undefined, `Generated ${month} payroll for ${created.length} employee(s).`);
     res.status(201).json({ message: `Payroll generated for ${created.length} employee(s)`, records: created });
   } catch (error) {
     console.error('Could not generate payroll:', error);
@@ -74,6 +77,7 @@ router.post('/generate', verifyToken, authorize('admin', 'hr'), async (req, res)
 
 router.patch('/:id/pay', verifyToken, authorize('admin', 'hr'), async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid payroll record ID.' });
     const record = await Payroll.findById(req.params.id);
     if (!record) return res.status(404).json({ message: 'Payroll record not found' });
     if (record.status === 'Paid') return res.status(409).json({ message: 'This payroll has already been marked paid' });
@@ -88,6 +92,7 @@ router.patch('/:id/pay', verifyToken, authorize('admin', 'hr'), async (req, res)
       'payroll-issued',
       `${record.month} payroll has been marked paid for ${record.employeeName}.`
     );
+    await recordAudit(req, 'paid', 'payroll', record._id, `Marked ${record.month} payroll as paid for ${record.employeeName}.`);
     res.json(record);
   } catch (error) {
     console.error('Could not update payroll status:', error);

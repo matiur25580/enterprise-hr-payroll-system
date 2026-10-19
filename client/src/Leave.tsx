@@ -22,7 +22,9 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
   const [leaves, setLeaves] = useState<LeaveRequest[]>([])
   const [form, setForm] = useState({ date: '', reason: '' })
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [reviewingId, setReviewingId] = useState('')
 
   const loadRequests = async () => {
     try {
@@ -37,6 +39,8 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
         return
       }
       setError('Could not load leave requests. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -74,6 +78,7 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
 
   const reviewLeave = async (request: LeaveRequest, status: 'Approved' | 'Rejected') => {
     setError('')
+    setReviewingId(request._id)
     try {
       const response = await axios.patch<LeaveRequest>(
         `${apiUrl}/api/leaves/${request._id}`,
@@ -92,6 +97,8 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
       } else {
         setError(`Could not ${status.toLowerCase()} the leave request. Please try again.`)
       }
+    } finally {
+      setReviewingId('')
     }
   }
 
@@ -104,6 +111,7 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
             <span>Leave date</span>
             <input
               type="date"
+              min={new Date().toISOString().slice(0, 10)}
               value={form.date}
               onInput={(event) => setForm({ ...form, date: event.currentTarget.value })}
               required
@@ -111,10 +119,11 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
           </label>
           <label className="leave-reason-field">
             <span>Reason</span>
-            <input
+            <textarea
               placeholder="Briefly share the reason for your request"
               value={form.reason}
               onInput={(event) => setForm({ ...form, reason: event.currentTarget.value })}
+              minLength={10}
               maxLength={500}
               required
             />
@@ -125,7 +134,7 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
         </form>
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="table-wrap">
+      {loading ? <div className="loading-state" role="status"><span className="loading-indicator" />Loading leave requests…</div> : <div className="table-wrap">
         <table>
           <thead>
             <tr>
@@ -147,8 +156,8 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
                   <td className="leave-actions">
                     {leave.status === 'Pending' ? (
                       <>
-                        <button className="table-action" onClick={() => void reviewLeave(leave, 'Approved')}>Approve</button>
-                        <button className="table-action danger-action" onClick={() => void reviewLeave(leave, 'Rejected')}>Decline</button>
+                        <button className="table-action" disabled={reviewingId === leave._id} onClick={() => void reviewLeave(leave, 'Approved')}>Approve</button>
+                        <button className="table-action danger-action" disabled={reviewingId === leave._id} onClick={() => void reviewLeave(leave, 'Rejected')}>Decline</button>
                       </>
                     ) : 'Reviewed'}
                   </td>
@@ -158,7 +167,7 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
             {!leaves.length && <tr><td colSpan={employeeSelfService ? 3 : 5} className="table-empty">No leave requests yet.</td></tr>}
           </tbody>
         </table>
-      </div>
+      </div>}
     </div>
   )
 }

@@ -1,8 +1,10 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Employee = require('../models/Employee');
 const LeaveRequest = require('../models/LeaveRequest');
 const { verifyToken, authorize } = require('../middleware/auth');
 const recordWorkplaceActivity = require('../utils/activity');
+const recordAudit = require('../utils/audit');
 
 const router = express.Router();
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -23,8 +25,12 @@ router.get('/', verifyToken, authorize('admin', 'hr', 'employee'), async (req, r
 router.post('/', verifyToken, authorize('employee'), async (req, res) => {
   try {
     const { date, reason } = req.body;
-    const parsedDate = new Date(date);
-    if (!date || !Number.isFinite(parsedDate.getTime()) || typeof reason !== 'string' || !reason.trim()) {
+    const parsedDate = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? new Date(`${date}T00:00:00.000Z`)
+      : new Date(NaN);
+    if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date
+      || parsedDate < new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`)
+      || typeof reason !== 'string' || reason.trim().length < 10 || reason.trim().length > 500) {
       return res.status(400).json({ message: 'Provide a valid leave date and reason' });
     }
 
@@ -46,6 +52,7 @@ router.post('/', verifyToken, authorize('employee'), async (req, res) => {
       'leave-requested',
       `${employee.name} submitted a leave request for ${parsedDate.toLocaleDateString()}.`
     );
+    await recordAudit(req, 'created', 'leave-request', request._id, `Submitted a leave request for ${request.employeeName}.`);
     res.status(201).json(request);
   } catch (error) {
     console.error('Could not submit leave request:', error);
@@ -54,6 +61,7 @@ router.post('/', verifyToken, authorize('employee'), async (req, res) => {
 });
 
 router.patch('/:id', verifyToken, authorize('admin', 'hr'), async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid leave request ID.' });
   try {
     const { status } = req.body;
     if (status !== 'Approved' && status !== 'Rejected') {
@@ -75,6 +83,7 @@ router.patch('/:id', verifyToken, authorize('admin', 'hr'), async (req, res) => 
       'leave-reviewed',
       `${request.employeeName}'s leave request for ${request.date.toLocaleDateString()} was ${status.toLowerCase()}.`
     );
+    await recordAudit(req, 'reviewed', 'leave-request', request._id, `Marked ${request.employeeName}'s leave request ${status.toLowerCase()}.`);
     res.json(request);
   } catch (error) {
     console.error('Could not review leave request:', error);

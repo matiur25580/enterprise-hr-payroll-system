@@ -1,15 +1,43 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Employee = require('../models/Employee');
 const Attendance = require('../models/Attendance');
 const { verifyToken, authorize } = require('../middleware/auth');
 const recordWorkplaceActivity = require('../utils/activity');
+const recordAudit = require('../utils/audit');
 
 const router = express.Router();
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
+const parseDateKey = (value) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return date.toISOString().slice(0, 10) === value ? date : null;
+};
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const findSignedInEmployee = (email) => Employee.findOne({
   email: { $regex: `^${escapeRegExp(String(email).toLowerCase())}$`, $options: 'i' }
+});
+
+router.get('/calendar', verifyToken, authorize('admin', 'hr', 'employee'), async (req, res) => {
+  const fromDate = parseDateKey(req.query.from);
+  const toDate = parseDateKey(req.query.to);
+  if (!fromDate || !toDate || fromDate > toDate || toDate - fromDate > 92 * 24 * 60 * 60 * 1000) {
+    return res.status(400).json({ message: 'Provide a valid attendance range of at most 93 days.' });
+  }
+  try {
+    const query = { date: { $gte: req.query.from, $lte: req.query.to } };
+    if (req.user.role === 'employee') {
+      const employee = await findSignedInEmployee(req.user.email);
+      if (!employee) return res.status(404).json({ message: 'Employee profile is not linked to this account' });
+      query.employee = employee._id;
+    }
+    const records = await Attendance.find(query).populate('employee', 'name email department').sort({ date: 1 }).lean();
+    res.json(records);
+  } catch (error) {
+    console.error('Could not load attendance calendar:', error);
+    res.status(500).json({ message: 'Could not load attendance calendar' });
+  }
 });
 
 router.get('/', verifyToken, authorize('admin', 'hr', 'employee'), async (req, res) => {
@@ -48,6 +76,7 @@ router.post('/checkin', verifyToken, authorize('employee'), async (req, res) => 
       'attendance-recorded',
       `${employee.name} checked in for work.`
     );
+    await recordAudit(req, 'checked-in', 'attendance', record._id, `Recorded a check-in for ${employee.name}.`);
     res.status(201).json(record);
   } catch (error) {
     if (error.code === 11000) {
@@ -74,6 +103,7 @@ router.post('/checkout', verifyToken, authorize('employee'), async (req, res) =>
       'attendance-recorded',
       `${employee.name} checked out for the day.`
     );
+    await recordAudit(req, 'checked-out', 'attendance', record._id, `Recorded a check-out for ${employee.name}.`);
     res.json(record);
   } catch (error) {
     console.error('Could not check out:', error);
@@ -82,6 +112,7 @@ router.post('/checkout', verifyToken, authorize('employee'), async (req, res) =>
 });
 
 router.put('/:employeeId', verifyToken, authorize('admin', 'hr'), async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.employeeId)) return res.status(400).json({ message: 'Invalid employee ID.' });
   try {
     const { status } = req.body;
     if (status !== 'present' && status !== 'absent') {
@@ -104,6 +135,7 @@ router.put('/:employeeId', verifyToken, authorize('admin', 'hr'), async (req, re
       'attendance-recorded',
       `${employee.name}'s attendance was marked ${status}.`
     );
+    await recordAudit(req, 'updated', 'attendance', record._id, `Marked ${employee.name} ${status}.`);
     res.json(record);
   } catch (error) {
     console.error('Could not update attendance:', error);

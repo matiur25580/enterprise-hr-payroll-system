@@ -17,7 +17,7 @@ type Page = 'login' | 'signup' | 'forgot'
 
 type SignupForm = {
   name: string
-  role: Role | ''
+  role: 'Employee'
   dateOfBirth: string
   phone: string
   email: string
@@ -33,7 +33,7 @@ const roleNames: Record<string, Role> = {
 
 const emptySignup: SignupForm = {
   name: '',
-  role: '',
+  role: 'Employee',
   dateOfBirth: '',
   phone: '',
   email: '',
@@ -90,9 +90,6 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     setRegisteredId('')
     setResetCodeSent(false)
     setSecondsRemaining(0)
-    if (nextPage === 'signup') {
-      setSignup((current) => ({ ...current, role: selectedRole || current.role }))
-    }
   }
 
   const submitLogin = async (event: Event) => {
@@ -193,13 +190,13 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     setSuccess('')
     setIsSubmitting(true)
     try {
-      await axios.post(`${apiUrl}/api/auth/password-reset/request-otp`, {
+      const response = await axios.post<{ message: string; expiresIn?: number }>(`${apiUrl}/api/auth/password-reset/request-otp`, {
         userId: resetUserId.trim(),
         email: resetEmail.trim(),
       })
       setResetCodeSent(true)
-      setSecondsRemaining(60)
-      setSuccess('A 4-digit verification code has been sent to your email.')
+      setSecondsRemaining(response.data.expiresIn ?? 60)
+      setSuccess(response.data.message)
     } catch (requestFailure) {
       setError(requestError(requestFailure, 'Could not send a verification code. Please try again.'))
     } finally {
@@ -307,16 +304,8 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
               <form onSubmit={requestSignupOtp}>
                 <label className="field-label" htmlFor="signup-name">Full name</label>
                 <input id="signup-name" autoComplete="name" value={signup.name} onInput={(event) => setSignup({ ...signup, name: event.currentTarget.value })} required />
-                <label className="field-label" htmlFor="signup-role">Role</label>
-                <select id="signup-role" value={signup.role} onChange={(event) => {
-                  const value = event.currentTarget.value
-                  if (value === 'Admin' || value === 'HR' || value === 'Employee' || value === '') setSignup({ ...signup, role: value })
-                }} required>
-                  <option value="" disabled>Select your role</option>
-                  <option value="Admin">Admin</option>
-                  <option value="HR">HR</option>
-                  <option value="Employee">Employee</option>
-                </select>
+                <label className="field-label" htmlFor="signup-role">Account type</label>
+                <input id="signup-role" value="Employee" readOnly aria-readonly="true" />
                 <label className="field-label" htmlFor="signup-dob">Date of birth (DDMMYYYY)</label>
                 <input id="signup-dob" inputMode="numeric" maxLength={8} placeholder="DDMMYYYY" value={signup.dateOfBirth} onInput={(event) => setSignup({ ...signup, dateOfBirth: event.currentTarget.value.replace(/\D/g, '') })} required />
                 <label className="field-label" htmlFor="signup-phone">Contact number</label>

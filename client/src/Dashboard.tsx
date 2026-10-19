@@ -8,6 +8,10 @@ import SalaryChart from './SalaryChart'
 import AuditLog from './AuditLog'
 import OfferLetter from './OfferLetter'
 import Performance from './Performance'
+import Announcements from './Announcements'
+import BulkEmployeeImport from './BulkEmployeeImport'
+import Support from './Support'
+import TeamDirectory from './TeamDirectory'
 import { logAudit } from './audit'
 import { apiUrl } from './api'
 import { canAdd, canDelete, canEdit, type Role, type UserSession } from './role'
@@ -23,7 +27,7 @@ type Employee = {
   joiningDate?: string
 }
 
-type Section = 'overview' | 'people' | 'profile' | 'payroll' | 'attendance' | 'leave' | 'performance' | 'offers' | 'audit'
+type Section = 'overview' | 'people' | 'profile' | 'payroll' | 'attendance' | 'leave' | 'performance' | 'offers' | 'audit' | 'announcements' | 'support' | 'team' | 'import'
 
 type DashboardProps = {
   session: UserSession
@@ -60,6 +64,8 @@ const roleContent: Record<Role, { title: string; description: string; nav: Array
       { id: 'performance', label: 'Performance', icon: '↗' },
       { id: 'offers', label: 'Offer letters', icon: '✉' },
       { id: 'audit', label: 'Audit trail', icon: '☷' },
+      { id: 'announcements', label: 'Announcements', icon: '◉' },
+      { id: 'support', label: 'Support queue', icon: '?' },
     ],
   },
   HR: {
@@ -73,6 +79,9 @@ const roleContent: Record<Role, { title: string; description: string; nav: Array
       { id: 'performance', label: 'Performance', icon: '↗' },
       { id: 'offers', label: 'Offer letters', icon: '✉' },
       { id: 'payroll', label: 'Payroll', icon: '▤' },
+      { id: 'import', label: 'Bulk import', icon: '⇧' },
+      { id: 'announcements', label: 'Announcements', icon: '◉' },
+      { id: 'support', label: 'Support queue', icon: '?' },
     ],
   },
   Employee: {
@@ -84,6 +93,10 @@ const roleContent: Record<Role, { title: string; description: string; nav: Array
       { id: 'payroll', label: 'My payslips', icon: '▤' },
       { id: 'attendance', label: 'My attendance', icon: '◷' },
       { id: 'leave', label: 'My leave', icon: '▧' },
+      { id: 'team', label: 'Team directory', icon: '♧' },
+      { id: 'announcements', label: 'Announcements', icon: '◉' },
+      { id: 'support', label: 'Help & support', icon: '?' },
+      { id: 'performance', label: 'My growth', icon: '↗' },
     ],
   },
 }
@@ -98,6 +111,10 @@ const titleForSection: Record<Section, string> = {
   performance: 'Performance & growth',
   offers: 'Offer letters',
   audit: 'Audit trail',
+  announcements: 'Announcements',
+  support: 'Help & support',
+  team: 'Team directory',
+  import: 'Bulk employee import',
 }
 
 function StatCard({ label, value, note, icon, tone = 'blue' }: { label: string; value: string; note: string; icon: string; tone?: string }) {
@@ -257,9 +274,11 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
   const knownActivityIds = useRef<Set<string> | null>(null)
   const [theme, setTheme] = useState<Theme>(() => {
     const savedTheme = localStorage.getItem(`workspace-theme-${session.role.toLowerCase()}`)
-    return savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : session.role === 'Admin' ? 'dark' : 'light'
+    return savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : 'dark'
   })
   const [activeSection, setActiveSection] = useState<Section>('overview')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [search, setSearch] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState('All')
   const [loading, setLoading] = useState(true)
@@ -271,6 +290,10 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
   )
   const employee = ownEmployees[0]
   const roleConfig = roleContent[role]
+  const navigateTo = (section: Section) => {
+    setActiveSection(section)
+    setSidebarOpen(false)
+  }
   const departments = useMemo(() => {
     const counts = employees.reduce<Record<string, number>>((result, person) => {
       const name = person.department || 'Unassigned'
@@ -410,7 +433,11 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
       person.department,
       person.designation,
       person.salary,
-    ].map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(','))
+    ].map((value) => {
+      const cell = String(value ?? '')
+      const safeCell = /^[\t\r\n ]*[=+\-@]/.test(cell) ? `'${cell}` : cell
+      return `"${safeCell.replaceAll('"', '""')}"`
+    }).join(','))
     const csv = ['Name,Email,Department,Designation,Monthly salary', ...rows].join('\n')
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
     const link = document.createElement('a')
@@ -468,7 +495,7 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
 
   const renderSection = () => {
     if (activeSection === 'overview') {
-      return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={role === 'Employee' && employee ? [{ name: employee.department, count: 1 }] : departments} onNavigate={setActiveSection} />
+      return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={role === 'Employee' && employee ? [{ name: employee.department, count: 1 }] : departments} onNavigate={navigateTo} />
     }
     if (activeSection === 'people' && role !== 'Employee') return renderPeople()
     if (activeSection === 'profile' && role === 'Employee') {
@@ -488,24 +515,29 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
     if (activeSection === 'payroll') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">{role === 'Employee' ? 'CONFIDENTIAL · PERSONAL' : 'COMPENSATION OPERATIONS'}</span><h2>{role === 'Employee' ? 'Your pay details' : 'Payroll register'}</h2></div></div><Payroll token={session.token} employeeSelfService={role === 'Employee'} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'attendance') return <section className="panel module-panel"><Attendance employees={role === 'Employee' ? ownEmployees : employees} token={session.token} employeeSelfService={role === 'Employee'} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'leave') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">{role === 'Employee' ? 'TIME OFF' : 'EMPLOYEE REQUESTS'}</span><h2>{role === 'Employee' ? 'My leave requests' : 'Leave management'}</h2></div></div><Leave token={session.token} employeeSelfService={role === 'Employee'} onNotify={notify} onUnauthorized={onLogout} /></section>
-    if (activeSection === 'performance' && role !== 'Employee') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">GROWTH & DEVELOPMENT</span><h2>Performance reviews</h2></div></div><Performance employees={employees} onNotify={notify} /></section>
+    if (activeSection === 'performance') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">GROWTH & DEVELOPMENT</span><h2>{role === 'Employee' ? 'My performance reviews' : 'Performance reviews'}</h2></div></div><Performance employees={role === 'Employee' ? ownEmployees : employees} token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'offers' && role !== 'Employee') return <section className="panel module-panel"><OfferLetter employees={employees} onNotify={notify} /></section>
-    if (activeSection === 'audit' && role === 'Admin') return <section className="panel module-panel"><AuditLog /></section>
-    return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={departments} onNavigate={setActiveSection} />
+    if (activeSection === 'audit' && role === 'Admin') return <section className="panel module-panel"><AuditLog token={session.token} onUnauthorized={onLogout} /></section>
+    if (activeSection === 'announcements') return <Announcements token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} />
+    if (activeSection === 'support') return <Support token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} />
+    if (activeSection === 'team' && role === 'Employee') return <TeamDirectory token={session.token} onUnauthorized={onLogout} />
+    if (activeSection === 'import' && role === 'HR') return <BulkEmployeeImport token={session.token} onImported={() => void fetchEmployees()} onNotify={notify} onUnauthorized={onLogout} />
+    return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={departments} onNavigate={navigateTo} />
   }
 
   const sectionTitle = activeSection === 'overview' ? roleConfig.title : titleForSection[activeSection]
   const timeGreeting = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date())
 
   return (
-    <div className={`workspace role-${role.toLowerCase()} theme-${theme}`}>
-      <aside className="sidebar">
-        <a className="brand" href="#overview" onClick={(event) => { event.preventDefault(); setActiveSection('overview') }}>
+    <div className={`workspace role-${role.toLowerCase()} theme-${theme} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      {sidebarOpen && <button className="sidebar-backdrop" type="button" aria-label="Close navigation menu" onClick={() => setSidebarOpen(false)} />}
+      <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
+        <a className="brand" href="#overview" onClick={(event) => { event.preventDefault(); navigateTo('overview') }}>
           <span className="brand-mark">N</span><span><strong>northstar</strong><small>PEOPLE PLATFORM</small></span>
         </a>
         <div className="workspace-label">WORKSPACE</div>
         <nav className="side-nav" aria-label="Main navigation">
-          {roleConfig.nav.map((item) => <button key={item.id} className={`nav-item ${activeSection === item.id ? 'nav-active' : ''}`} onClick={() => setActiveSection(item.id)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></button>)}
+          {roleConfig.nav.map((item) => <button key={item.id} className={`nav-item ${activeSection === item.id ? 'nav-active' : ''}`} onClick={() => navigateTo(item.id)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></button>)}
         </nav>
         <div className="sidebar-bottom">
           <div className="help-card"><span className="help-icon">✦</span><strong>Need a hand?</strong><p>Contact your people operations team for support.</p><a href="mailto:people@company.com">Get support <span aria-hidden="true">→</span></a></div>
@@ -515,6 +547,10 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
 
       <main className="main-area">
         <header className="topbar">
+          <button className="menu-toggle" type="button" aria-label={window.matchMedia('(max-width: 767px)').matches ? 'Toggle navigation' : sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => {
+            if (window.matchMedia('(max-width: 767px)').matches) setSidebarOpen((open) => !open)
+            else setSidebarCollapsed((collapsed) => !collapsed)
+          }}>{sidebarCollapsed ? '☰' : '☰'}</button>
           <div className="breadcrumb">Workspace <span>/</span> <strong>{sectionTitle}</strong></div>
           <div className="topbar-right"><span className="today-label">{timeGreeting}</span><span className="role-chip">{role} Portal</span><button className="theme-toggle" type="button" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span><span>{theme === 'dark' ? 'Light' : 'Dark'} mode</span></button><button className="mobile-logout" onClick={onLogout}>Sign out</button></div>
         </header>
