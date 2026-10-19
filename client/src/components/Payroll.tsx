@@ -99,7 +99,6 @@ export default function Payroll({ token, employeeSelfService, onNotify, onUnauth
         { headers: { Authorization: `Bearer ${token}` } },
       )
       setRecords((current) => [...response.data.records, ...current])
-      logAudit('PAYROLL', `Generated payroll for ${month}`)
       onNotify(response.data.message)
     } catch (requestError) {
       if (axios.isAxiosError<{ message?: string }>(requestError)) {
@@ -126,7 +125,6 @@ export default function Payroll({ token, employeeSelfService, onNotify, onUnauth
         { headers: { Authorization: `Bearer ${token}` } },
       )
       setRecords((current) => current.map((item) => item._id === record._id ? response.data : item))
-      logAudit('PAYROLL', `Marked ${record.month} payroll paid for ${record.employeeName}`)
       onNotify(`${record.employeeName}’s ${monthLabel(record.month)} payroll was marked paid.`)
     } catch (requestError) {
       if (axios.isAxiosError<{ message?: string }>(requestError)) {

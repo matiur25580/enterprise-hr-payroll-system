@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import axios from 'axios'
 import { apiUrl } from '../services/api'
-import { logAudit } from '../utils/audit'
 
 type Employee = {
   _id: string
@@ -125,7 +124,6 @@ export default function Attendance({
         ...current.filter((record) => record.employee.email.toLowerCase() !== employee.email.toLowerCase()),
         { ...response.data, employee },
       ])
-      logAudit('ATTENDANCE', `Marked ${employee.name} ${status}`)
       onNotify(`Attendance marked ${status} for ${employee.name}.`)
     } catch (requestError) {
       if (axios.isAxiosError<{ message?: string }>(requestError)) {
@@ -156,7 +154,6 @@ export default function Attendance({
         ...current.filter((record) => record.employee.email.toLowerCase() !== employee.email.toLowerCase()),
         { ...response.data, employee },
       ])
-      logAudit('ATTENDANCE', action === 'checkin' ? 'Checked in for work' : 'Checked out from work')
       onNotify(action === 'checkin' ? 'You are checked in for today.' : 'You are checked out for today.')
     } catch (requestError) {
       if (axios.isAxiosError<{ message?: string }>(requestError)) {

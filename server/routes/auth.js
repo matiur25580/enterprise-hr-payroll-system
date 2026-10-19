@@ -5,16 +5,12 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const EmailChallenge = require('../models/EmailChallenge');
 const sendOtpEmail = require('../utils/email');
-<<<<<<< HEAD
 const createRateLimit = require('../middlewares/rateLimit');
 const { verifyToken } = require('../middlewares/auth');
-=======
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
 
 const router = express.Router();
 const OTP_LIFETIME_MS = 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
-<<<<<<< HEAD
 const rolePrefixes = { admin: 'AD', hr: 'HR', employee: 'EM' };
 const loginRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many sign-in attempts. Try again later.' });
 const otpRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many verification requests. Try again later.' });
@@ -29,10 +25,6 @@ router.get('/session', verifyToken, (req, res) => {
     },
   });
 });
-=======
-const validRoles = new Set(['admin', 'hr', 'employee']);
-const rolePrefixes = { admin: 'AD', hr: 'HR', employee: 'EM' };
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
 
 function normalizeEmail(email) {
   return typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -127,7 +119,6 @@ async function consumeOtp(challenge, code) {
     if (challenge) await EmailChallenge.deleteOne({ _id: challenge._id });
     return false;
   }
-<<<<<<< HEAD
   const attempt = await EmailChallenge.findOneAndUpdate(
     { _id: challenge._id, attempts: { $lt: MAX_OTP_ATTEMPTS }, expiresAt: { $gt: new Date() } },
     { $inc: { attempts: 1 } },
@@ -141,30 +132,13 @@ router.post('/register/request-otp', otpRateLimit, async (req, res) => {
     const { name, dateOfBirth, password, confirmPassword } = req.body;
     const normalizedName = typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : '';
     const normalizedRole = 'employee';
-=======
-  await EmailChallenge.updateOne({ _id: challenge._id }, { $inc: { attempts: 1 } });
-  return bcrypt.compare(code, challenge.codeHash);
-}
-
-router.post('/register/request-otp', async (req, res) => {
-  try {
-    const { name, role, dateOfBirth, password, confirmPassword } = req.body;
-    const normalizedName = typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : '';
-    const normalizedRole = typeof role === 'string' ? role.trim().toLowerCase() : '';
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
     const email = normalizeEmail(req.body.email);
     const phone = normalizePhone(req.body.phone);
     const birthDate = parseBirthDate(dateOfBirth);
 
-<<<<<<< HEAD
     if (!normalizedName || normalizedName.length > 120 || !email || !phone || !birthDate
       || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !accountIdBase(normalizedName, normalizedRole, birthDate)
       || typeof password !== 'string' || password.length < 8 || password.length > 128 || password !== confirmPassword) {
-=======
-    if (!normalizedName || !email || !phone || !birthDate || !validRoles.has(normalizedRole)
-      || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !accountIdBase(normalizedName, normalizedRole, birthDate)
-      || typeof password !== 'string' || password.length < 8 || password !== confirmPassword) {
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
       return res.status(400).json({ message: 'Complete every field with valid information. Passwords must match and contain at least 8 characters.' });
     }
 
@@ -192,11 +166,7 @@ router.post('/register/request-otp', async (req, res) => {
   }
 });
 
-<<<<<<< HEAD
 router.post('/register/verify-otp', otpRateLimit, async (req, res) => {
-=======
-router.post('/register/verify-otp', async (req, res) => {
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
   try {
     const email = normalizeEmail(req.body.email);
     const code = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
@@ -249,25 +219,15 @@ router.post('/register/verify-otp', async (req, res) => {
   }
 });
 
-<<<<<<< HEAD
 router.post('/password-reset/request-otp', otpRateLimit, async (req, res) => {
-=======
-router.post('/password-reset/request-otp', async (req, res) => {
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
   try {
     const email = normalizeEmail(req.body.email);
     const userId = normalizeUserId(req.body.userId);
     if (!email || !userId) return res.status(400).json({ message: 'Enter your account ID and email address.' });
 
     const user = await User.findOne({ userId, email }).select('_id userId email').lean();
-<<<<<<< HEAD
     if (user) await saveChallenge({ email, purpose: 'password-reset', userId: user.userId });
     res.json({ message: 'If the account exists, a verification code will be sent to its email address.', expiresIn: 60 });
-=======
-    if (!user) return res.status(404).json({ message: 'Invalid account ID or email address.' });
-    await saveChallenge({ email, purpose: 'password-reset', userId: user.userId });
-    res.json({ message: 'Verification code sent to your email address.', expiresIn: 60 });
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
   } catch (error) {
     if (error.status === 429) return res.status(429).json({ message: error.message });
     if (error.status === 503) return res.status(503).json({ message: 'Email delivery is unavailable. Contact the system administrator.' });
@@ -282,11 +242,7 @@ router.post('/password-reset/reset', async (req, res) => {
     const userId = normalizeUserId(req.body.userId);
     const code = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
     const password = req.body.password;
-<<<<<<< HEAD
     if (!email || !userId || !/^\d{4}$/.test(code) || typeof password !== 'string' || password.length < 8 || password.length > 128) {
-=======
-    if (!email || !userId || !/^\d{4}$/.test(code) || typeof password !== 'string' || password.length < 8) {
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
       return res.status(400).json({ message: 'Enter a valid code and a password with at least 8 characters.' });
     }
 
@@ -297,10 +253,7 @@ router.post('/password-reset/reset', async (req, res) => {
     const user = await User.findOne({ email, userId });
     if (!user) return res.status(400).json({ message: 'Invalid account ID or email address.' });
     user.password = await bcrypt.hash(password, 10);
-<<<<<<< HEAD
     user.tokenVersion = (user.tokenVersion ?? 0) + 1;
-=======
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
     await user.save();
     await EmailChallenge.deleteOne({ _id: challenge._id });
     res.json({ message: 'Password reset successful. You can now log in.' });
@@ -310,11 +263,7 @@ router.post('/password-reset/reset', async (req, res) => {
   }
 });
 
-<<<<<<< HEAD
 router.post('/login', loginRateLimit, async (req, res) => {
-=======
-router.post('/login', async (req, res) => {
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
   try {
     const userId = normalizeUserId(req.body.userId);
     const password = req.body.password;
@@ -327,11 +276,7 @@ router.post('/login', async (req, res) => {
 
     const role = String(user.role).trim().toLowerCase();
     const token = jwt.sign(
-<<<<<<< HEAD
       { id: user._id, role, email: user.email, tokenVersion: user.tokenVersion ?? 0 },
-=======
-      { id: user._id, role, email: user.email },
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
       process.env.JWT_SECRET,
       { expiresIn: '7d' },
     );

@@ -1,5 +1,4 @@
 const express = require('express');
-<<<<<<< HEAD
 const mongoose = require('mongoose');
 const Employee = require('../models/Employee');
 const { verifyToken, authorize } = require('../middlewares/auth');
@@ -106,33 +105,12 @@ router.post('/', verifyToken, authorize('admin','hr'), async (req,res)=>{
     await emp.save();
     await recordWorkplaceActivity(req, emp.email, 'employee-added', `${emp.name} was added to the employee directory.`);
     await recordAudit(req, 'created', 'employee', emp._id, `Added employee ${emp.name}.`);
-=======
-const Employee = require('../models/Employee');
-const { verifyToken, authorize } = require('../middleware/auth');
-const recordWorkplaceActivity = require('../utils/activity');
-const router = express.Router();
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-router.post('/', verifyToken, authorize('admin','hr'), async (req,res)=>{
-  try{
-    const employeeData = { ...req.body };
-    if (typeof employeeData.email === 'string') employeeData.email = employeeData.email.trim().toLowerCase();
-    delete employeeData.employeeId;
-    const emp = new Employee(employeeData);
-    emp.employeeId = `EMP-${emp._id.toString().toUpperCase()}`;
-    await emp.save();
-    await recordWorkplaceActivity(req, emp.email, 'employee-added', `${emp.name} was added to the employee directory.`);
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
     res.status(201).json(emp);
   }catch(e){
     if (e.code === 11000 && e.keyPattern?.email)
       return res.status(409).json({message:'This email is already registered as an employee.'});
     console.error('Could not add employee:', e);
-<<<<<<< HEAD
     res.status(e.name === 'ValidationError' ? 400 : 500).json({message: e.name === 'ValidationError' ? 'Employee data is invalid.' : 'Could not add employee'});
-=======
-    res.status(500).json({message:'Could not add employee'});
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
   }
 });
 
@@ -146,63 +124,39 @@ router.get('/', verifyToken, async (req,res)=>{
         : {}
     );
     res.json(emps);
-<<<<<<< HEAD
   }catch(e){ console.error('Could not load employees:', e); res.status(500).json({message:'Could not load employees'}); }
 });
 
 router.get('/:id', verifyToken, async (req,res)=>{
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid employee ID.' });
-=======
-  }catch(e){ res.status(500).json({message:e.message}); }
-});
-
-router.get('/:id', verifyToken, async (req,res)=>{
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
   try{
     const emp = await Employee.findById(req.params.id);
     if(!emp) return res.status(404).json({message:'Not found'});
     if (req.user.role === 'employee' && emp.email.toLowerCase() !== String(req.user.email).toLowerCase())
       return res.status(403).json({message:'Access denied'});
     res.json(emp);
-<<<<<<< HEAD
   }catch(e){ console.error('Could not load employee:', e); res.status(500).json({message:'Could not load employee'}); }
-=======
-  }catch(e){ res.status(500).json({message:e.message}); }
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
 });
 
 router.put('/:id', verifyToken, authorize('admin','hr'), async (req,res)=>{
   try{
-<<<<<<< HEAD
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid employee ID.' });
     const result = validateEmployee(req.body, true);
     if (result.error || !Object.keys(result.updates).length) return res.status(400).json({ message: result.error || 'Provide at least one valid field to update.' });
     const emp = await Employee.findByIdAndUpdate(req.params.id, result.updates, {new:true, runValidators:true});
-=======
-    const updates = { ...req.body };
-    delete updates.employeeId;
-    if (typeof updates.email === 'string') updates.email = updates.email.trim().toLowerCase();
-    const emp = await Employee.findByIdAndUpdate(req.params.id, updates, {new:true, runValidators:true});
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
     if (!emp) return res.status(404).json({message:'Employee not found'});
     const compensationChanged = Object.prototype.hasOwnProperty.call(req.body, 'salary');
     const message = compensationChanged
       ? `${emp.name}'s compensation details were updated.`
       : `${emp.name}'s employee profile was updated.`;
     await recordWorkplaceActivity(req, emp.email, 'employee-updated', message);
-<<<<<<< HEAD
     await recordAudit(req, 'updated', 'employee', emp._id, `Updated employee ${emp.name}.`);
     res.json(emp);
   }catch(e){ console.error('Could not update employee:', e); res.status(e.name === 'ValidationError' ? 400 : 500).json({message: e.name === 'ValidationError' ? 'Employee data is invalid.' : 'Could not update employee'}); }
-=======
-    res.json(emp);
-  }catch(e){ res.status(500).json({message:e.message}); }
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
 });
 
 router.delete('/:id', verifyToken, authorize('admin'), async (req,res)=>{
   try{
-<<<<<<< HEAD
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid employee ID.' });
     const emp = await Employee.findByIdAndDelete(req.params.id);
     if (!emp) return res.status(404).json({message:'Employee not found'});
@@ -210,13 +164,6 @@ router.delete('/:id', verifyToken, authorize('admin'), async (req,res)=>{
     await recordAudit(req, 'deleted', 'employee', emp._id, `Removed employee ${emp.name}.`);
     res.json({message:'Employee deleted'});
   }catch(e){ console.error('Could not delete employee:', e); res.status(500).json({message:'Could not delete employee'}); }
-=======
-    const emp = await Employee.findByIdAndDelete(req.params.id);
-    if (!emp) return res.status(404).json({message:'Employee not found'});
-    await recordWorkplaceActivity(req, emp.email, 'employee-removed', `${emp.name}'s employee record was removed.`);
-    res.json({message:'Employee deleted'});
-  }catch(e){ res.status(500).json({message:e.message}); }
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
 });
 
 module.exports = router;

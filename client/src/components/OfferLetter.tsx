@@ -1,10 +1,12 @@
 import { useState } from 'preact/hooks'
+import axios from 'axios'
 import jsPDF from 'jspdf'
-import { logAudit } from '../utils/audit'
+import { apiUrl } from '../services/api'
 
 type Employee = {
   _id: string
   name: string
+  email: string
   department: string
   designation: string
   salary: number
@@ -12,15 +14,20 @@ type Employee = {
 
 export default function OfferLetter({
   employees,
+  token,
   onNotify,
+  onUnauthorized,
 }: {
   employees: Employee[]
+  token: string
   onNotify: (message: string, tone?: 'success' | 'error') => void
+  onUnauthorized: () => void
 }) {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const generate = () => {
+  const generate = async () => {
     const employee = employees.find((item) => item._id === selectedEmployeeId)
     if (!employee) {
       setError('Select an employee before generating an offer letter.')
@@ -28,6 +35,7 @@ export default function OfferLetter({
     }
 
     setError('')
+    setIsSubmitting(true)
     try {
       const doc = new jsPDF()
       doc.setFontSize(18)
@@ -41,12 +49,33 @@ export default function OfferLetter({
       doc.text('Sincerely,', 20, 130)
       doc.text('HR Manager', 20, 145)
       const safeName = employee.name.replace(/[^a-z0-9-]/gi, '-')
-      doc.save(`${safeName}-offer-letter.pdf`)
-      logAudit('OFFER', `Generated offer letter for ${employee.name}`)
-      onNotify(`Offer letter for ${employee.name} generated successfully.`)
+      const fileName = `${safeName.slice(0, 100)}-offer-letter.pdf`
+      const bytes = new Uint8Array(doc.output('arraybuffer'))
+      let binary = ''
+      for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000))
+      }
+      await axios.post(`${apiUrl}/api/documents`, {
+        title: `Offer Letter - ${employee.name}`.slice(0, 120),
+        fileName,
+        employeeEmail: employee.email,
+        contentBase64: btoa(binary),
+      }, { headers: { Authorization: `Bearer ${token}` } })
+      doc.save(fileName)
+      onNotify(`Offer letter for ${employee.name} was saved to employee documents and downloaded.`)
     } catch (generationError) {
+      if (axios.isAxiosError<{ message?: string }>(generationError)) {
+        if (generationError.response?.status === 401) {
+          onUnauthorized()
+          return
+        }
+        setError(generationError.response?.data?.message ?? 'Could not save the offer letter.')
+        return
+      }
       console.error('Could not generate offer letter:', generationError)
       onNotify('Could not create the offer letter PDF. Please try again.', 'error')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -62,7 +91,9 @@ export default function OfferLetter({
       </label>
       {error && <p className="form-error" role="alert">{error}</p>}
       {!employees.length && <p className="table-empty">Add an employee before generating an offer letter.</p>}
-      <button className="primary-button" type="button" disabled={!employees.length} onClick={generate}>Generate PDF</button>
+      <button className="primary-button" type="button" disabled={!employees.length || isSubmitting} onClick={() => void generate()}>
+        {isSubmitting ? 'Saving offer letter…' : 'Generate PDF'}
+      </button>
     </section>
   )
 }

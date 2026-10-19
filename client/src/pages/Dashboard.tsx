@@ -419,7 +419,6 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
       await axios.delete(`${apiUrl}/api/employees/${person._id}`, {
         headers: { Authorization: `Bearer ${session.token}` },
       })
-      logAudit('DELETE', `Deleted employee ${person.name}`)
       await fetchEmployees()
       notify(`${person.name} was removed successfully.`)
     } catch (requestError) {
@@ -449,7 +448,6 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
       await axios.put(`${apiUrl}/api/employees/${person._id}`, { salary: amount, department }, {
         headers: { Authorization: `Bearer ${session.token}` },
       })
-      logAudit('EDIT', `Updated ${person.name} employee details`)
       setEditingEmployeeId('')
       await fetchEmployees()
       notify(`${person.name}'s details were updated successfully.`)
@@ -495,7 +493,6 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
           <AddEmployee
             token={session.token}
             onAdded={(employeeId) => {
-              logAudit('ADD', 'Added a new employee')
               void fetchEmployees()
               notify(`Employee added successfully. Employee ID: ${employeeId}`)
             }}
@@ -572,7 +569,7 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
     if (activeSection === 'attendance') return <section className="panel module-panel"><Attendance employees={role === 'Employee' ? ownEmployees : employees} token={session.token} employeeSelfService={role === 'Employee'} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'leave') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">{role === 'Employee' ? 'TIME OFF' : 'EMPLOYEE REQUESTS'}</span><h2>{role === 'Employee' ? 'My leave requests' : 'Leave management'}</h2></div></div><Leave token={session.token} employeeSelfService={role === 'Employee'} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'performance') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">GROWTH & DEVELOPMENT</span><h2>{role === 'Employee' ? 'My performance reviews' : 'Performance reviews'}</h2></div></div><Performance employees={role === 'Employee' ? ownEmployees : employees} token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} /></section>
-    if (activeSection === 'offers' && role !== 'Employee') return <section className="panel module-panel"><OfferLetter employees={employees} onNotify={notify} /></section>
+    if (activeSection === 'offers' && role !== 'Employee') return <section className="panel module-panel"><OfferLetter employees={employees} token={session.token} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'audit' && role === 'Admin') return <section className="panel module-panel"><AuditLog token={session.token} onUnauthorized={onLogout} /></section>
     if (activeSection === 'departments' && role === 'Admin') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">ORGANIZATION STRUCTURE</span><h2>Department management</h2></div></div><DepartmentManagement token={session.token} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'analytics' && role === 'Admin') return <WorkforceAnalytics token={session.token} onNotify={notify} onUnauthorized={onLogout} />

@@ -1,35 +1,24 @@
 const express = require('express');
-<<<<<<< HEAD
 const mongoose = require('mongoose');
 const Employee = require('../models/Employee');
 const Attendance = require('../models/Attendance');
 const { verifyToken, authorize } = require('../middlewares/auth');
 const recordWorkplaceActivity = require('../utils/activity');
 const recordAudit = require('../utils/audit');
-=======
-const Employee = require('../models/Employee');
-const Attendance = require('../models/Attendance');
-const { verifyToken, authorize } = require('../middleware/auth');
-const recordWorkplaceActivity = require('../utils/activity');
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
 
 const router = express.Router();
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
-<<<<<<< HEAD
 const parseDateKey = (value) => {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const date = new Date(`${value}T00:00:00.000Z`);
   return date.toISOString().slice(0, 10) === value ? date : null;
 };
-=======
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const findSignedInEmployee = (email) => Employee.findOne({
   email: { $regex: `^${escapeRegExp(String(email).toLowerCase())}$`, $options: 'i' }
 });
 
-<<<<<<< HEAD
 router.get('/calendar', verifyToken, authorize('admin', 'hr', 'employee'), async (req, res) => {
   const fromDate = parseDateKey(req.query.from);
   const toDate = parseDateKey(req.query.to);
@@ -51,8 +40,6 @@ router.get('/calendar', verifyToken, authorize('admin', 'hr', 'employee'), async
   }
 });
 
-=======
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
 router.get('/', verifyToken, authorize('admin', 'hr', 'employee'), async (req, res) => {
   try {
     const query = { date: todayKey() };
@@ -89,10 +76,7 @@ router.post('/checkin', verifyToken, authorize('employee'), async (req, res) => 
       'attendance-recorded',
       `${employee.name} checked in for work.`
     );
-<<<<<<< HEAD
     await recordAudit(req, 'checked-in', 'attendance', record._id, `Recorded a check-in for ${employee.name}.`);
-=======
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
     res.status(201).json(record);
   } catch (error) {
     if (error.code === 11000) {
@@ -119,10 +103,7 @@ router.post('/checkout', verifyToken, authorize('employee'), async (req, res) =>
       'attendance-recorded',
       `${employee.name} checked out for the day.`
     );
-<<<<<<< HEAD
     await recordAudit(req, 'checked-out', 'attendance', record._id, `Recorded a check-out for ${employee.name}.`);
-=======
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
     res.json(record);
   } catch (error) {
     console.error('Could not check out:', error);
@@ -131,10 +112,7 @@ router.post('/checkout', verifyToken, authorize('employee'), async (req, res) =>
 });
 
 router.put('/:employeeId', verifyToken, authorize('admin', 'hr'), async (req, res) => {
-<<<<<<< HEAD
   if (!mongoose.isValidObjectId(req.params.employeeId)) return res.status(400).json({ message: 'Invalid employee ID.' });
-=======
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
   try {
     const { status } = req.body;
     if (status !== 'present' && status !== 'absent') {
@@ -157,10 +135,7 @@ router.put('/:employeeId', verifyToken, authorize('admin', 'hr'), async (req, re
       'attendance-recorded',
       `${employee.name}'s attendance was marked ${status}.`
     );
-<<<<<<< HEAD
     await recordAudit(req, 'updated', 'attendance', record._id, `Marked ${employee.name} ${status}.`);
-=======
->>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
     res.json(record);
   } catch (error) {
     console.error('Could not update attendance:', error);
