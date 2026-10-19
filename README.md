@@ -132,7 +132,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Run the client and server in separate terminals. The Vite development proxy forwards `/api` to the local API by default. Set `VITE_API_URL` only when the API uses a different base URL.
+Run the client and server in separate terminals. For local development, leave `VITE_API_URL` empty in `client/.env` so the Vite development proxy forwards `/api` to the local API. The checked-in client example contains a Render URL placeholder for deployment; replace it with your deployed backend URL in Vercel project settings.
 
 The development client URL is printed by Vite. From the repository root, build the client and run backend tests with:
 
@@ -140,6 +140,14 @@ The development client URL is printed by Vite. From the repository root, build t
 npm run build
 npm test
 ```
+
+## Deploy to Vercel and Render
+
+1. Create a Render Web Service from the repository with the root directory set to `server`, build command `npm install`, and start command `npm start`. Configure `MONGO_URI`, a strong `JWT_SECRET` (at least 32 characters), and `CLIENT_URL` with the deployed Vercel origin (for example, `https://your-app.vercel.app`). Render supplies `PORT`.
+2. Create a Vercel project from the same repository with the root directory set to `client`, build command `npm run build`, and output directory `dist`.
+3. In Vercel project settings, add `VITE_API_URL` with the Render API URL ending in `/api` (for example, `https://your-backend.onrender.com/api`) and redeploy. The client-side Vercel rewrite supports the app's role routes.
+
+The server defaults CORS to `*` when `CLIENT_URL` is unset. Set `CLIENT_URL` to the exact deployed frontend origin in production.
 
 ### Provisioning the first Admin
 
@@ -161,7 +169,7 @@ Names only; values belong in ignored local files or a managed secret store.
 - `NODE_ENV`
 - `MONGO_URI`
 - `JWT_SECRET`
-- `CLIENT_ORIGINS`
+- `CLIENT_URL`
 - `EMAIL_HOST`
 - `EMAIL_PORT`
 - `EMAIL_SECURE`

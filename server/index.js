@@ -22,22 +22,10 @@ const documentRoutes = require('./routes/documents');
 const { verifyToken, authorize } = require('./middlewares/auth');
 
 const app = express();
-const allowedOrigins = new Set(
-  (process.env.CLIENT_ORIGINS || 'http://localhost:5173,http://localhost:5175,http://localhost:5176,http://localhost:4173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
-);
 
 app.disable('x-powered-by');
 app.use(cors({
-  credentials: true,
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin) || /^https:\/\/.*\.app\.github\.dev$/.test(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error('Origin is not allowed by CORS'));
-  },
+  origin: process.env.CLIENT_URL || '*',
 }));
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -86,13 +74,13 @@ async function startServer() {
   if (typeof process.env.JWT_SECRET !== 'string' || process.env.JWT_SECRET.length < 32) {
     throw new Error('JWT_SECRET must contain at least 32 characters');
   }
-  const port = Number(process.env.PORT || 5000);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be a valid TCP port');
+  const PORT = Number(process.env.PORT || 5000);
+  if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) throw new Error('PORT must be a valid TCP port');
 
-  await connectDatabase();
+  await connectDatabase(process.env.MONGO_URI);
   console.log('MongoDB connected');
 
-  app.listen(port, () => console.log(`Server running on port ${port}`));
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 }
 
 startServer().catch((error) => {
