@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const Activity = require('../models/Activity');
-const { verifyToken, authorize } = require('../middleware/auth');
+const { verifyToken, authorize } = require('../middlewares/auth');
 
 const router = express.Router();
 

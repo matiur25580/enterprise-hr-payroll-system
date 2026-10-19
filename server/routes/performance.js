@@ -1,7 +1,7 @@
 const express = require('express');
 const Employee = require('../models/Employee');
 const PerformanceReview = require('../models/PerformanceReview');
-const { verifyToken, authorize } = require('../middleware/auth');
+const { verifyToken, authorize } = require('../middlewares/auth');
 const recordWorkplaceActivity = require('../utils/activity');
 const recordAudit = require('../utils/audit');
 

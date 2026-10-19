@@ -1,7 +1,8 @@
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
+const connectDatabase = require('./config/database');
+const { getHealth } = require('./controllers/health');
 
 const authRoutes = require('./routes/auth');
 const employeeRoutes = require('./routes/employees');
@@ -15,8 +16,10 @@ const supportRoutes = require('./routes/support');
 const performanceRoutes = require('./routes/performance');
 const peopleRoutes = require('./routes/people');
 const departmentRoutes = require('./routes/departments');
+const analyticsRoutes = require('./routes/analytics');
+const documentRoutes = require('./routes/documents');
 const seedDemoUsers = require('./seedDemoUsers');
-const { verifyToken, authorize } = require('./middleware/auth');
+const { verifyToken, authorize } = require('./middlewares/auth');
 
 const app = express();
 const allowedOrigins = new Set(
@@ -58,10 +61,13 @@ app.use('/api/support', supportRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/people', peopleRoutes);
 app.use('/api/departments', departmentRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/documents', documentRoutes);
 
 app.get('/api/admin-only', verifyToken, authorize('admin'), (req, res) => {
   res.json({ message: `Welcome admin ${req.user.id}` });
 });
+app.get('/api/health', getHealth);
 app.get('/', (req, res) => res.json({ ok: true }));
 app.use('/api', (req, res) => res.status(404).json({ message: 'API route not found' }));
 app.use((error, req, res, next) => {
@@ -74,14 +80,13 @@ app.use((error, req, res, next) => {
 });
 
 async function startServer() {
-  if (!process.env.MONGO_URI) throw new Error('MONGO_URI must be configured');
   if (typeof process.env.JWT_SECRET !== 'string' || process.env.JWT_SECRET.length < 32) {
     throw new Error('JWT_SECRET must contain at least 32 characters');
   }
   const port = Number(process.env.PORT || 5000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be a valid TCP port');
 
-  await mongoose.connect(process.env.MONGO_URI);
+  await connectDatabase();
   console.log('MongoDB connected');
 
   if (process.env.ENABLE_DEMO_SEED === 'true' && process.env.NODE_ENV === 'development') {

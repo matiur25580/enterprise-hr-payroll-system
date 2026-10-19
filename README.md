@@ -1,72 +1,69 @@
 # Smart HR & Payroll Management System
 
-**A responsive, role-based people operations workspace for managing employee records, attendance, leave, performance and payroll.**
+**A role-based people operations platform for workforce administration, payroll, attendance and employee self-service.**
 
-![MERN](https://img.shields.io/badge/stack-MERN-3c873a)
-![JWT](https://img.shields.io/badge/auth-JWT-blue)
+![MERN-compatible architecture](https://img.shields.io/badge/architecture-MERN--compatible-3c873a)
+![JWT authentication](https://img.shields.io/badge/auth-JWT-blue)
 ![MongoDB](https://img.shields.io/badge/database-MongoDB-47A248)
 
-## Overview
+> The client uses Preact with a React-compatible component model, not React itself. The backend uses Express and MongoDB.
 
-Smart HR & Payroll is a web application for small and mid-sized organizations. It gives administrators, HR teams and employees separate workspaces for day-to-day workforce management and self-service. The application has a Preact/TypeScript client, an Express API and MongoDB persistence.
+## About
 
-## Role dashboards
+Smart HR & Payroll is a responsive web application for organizations that need a shared workspace for administrators, HR teams and employees. Admin and HR users manage workforce and people operations; employees use role-restricted self-service tools for payroll documents, attendance, time off, team information and support.
 
-### Admin
-
-- Review workforce and payroll summaries.
-- Manage employee records, attendance, leave, offer letters and performance reviews.
-- Review payroll reports and salary distribution.
-- Track talent candidates through recruiting stages and oversee onboarding tasks.
-- Publish organization announcements.
-- Review an administrative audit trail and support queue.
-
-### HR
-
-- Manage employee records, attendance, leave, offers and payroll operations.
-- Import employees from validated CSV files.
-- Track a candidate pipeline and assign employee onboarding checklists.
-- Create and review quarterly performance records.
-- Triage employee support requests and view company announcements.
-
-### Employee
-
-- View personal profile and saved payslips.
-- Review attendance and submit leave requests.
-- Browse the team directory and company announcements.
-- Raise and follow up on HR/helpdesk support requests.
-- Review notifications, assigned onboarding, shift and training records.
+The project includes a TypeScript/Preact single-page client, a Node.js/Express JSON API and MongoDB persistence through Mongoose. Authentication uses signed JWTs and bcrypt password hashing. API access is checked on the server for every protected role.
 
 ## Key features
 
-- Role-aware dashboards and server-enforced API authorization.
-- Employee directory, search, CSV export and bulk import.
-- Attendance check-in/out and calendar views.
-- Leave request and review workflow.
-- Monthly payroll snapshots and employee payslip downloads.
-- Quarterly performance reviews.
-- Hiring pipeline and onboarding task tracking.
-- Admin audit events, announcements and employee support tickets.
-- Employee notifications inbox and annual payroll tax summaries based on recorded pay data.
-- Responsive layouts, loading/empty/error states and a consistent dark theme.
+### Admin dashboard
 
-Annual payroll tax summaries are informational exports of saved payroll records, not
-statutory Form 16 certificates.
+- Workforce overview with headcount, department mix, current monthly payroll cost and recent joiners.
+- Workforce analytics with department headcount/payroll and a 12-month trend of audited employee-record removals.
+- Department creation and deletion, with deletion blocked while employees remain assigned.
+- Employee directory and role-protected employee administration.
+- Payroll generation, payment status, payslip PDFs, payroll PDF reports and Excel-compatible CSV exports.
+- Administrative audit trail, announcements and support queue.
+- Secure PDF document library for company-wide or employee-assigned files.
+- Performance reviews, candidate pipeline and onboarding operations.
 
-## Technology
+The exit trend is based on employee records removed from the directory. It is not a verified or statutory attrition rate.
 
-- **Frontend:** Preact, TypeScript, Vite, Axios and CSS.
+### HR dashboard
+
+- Employee directory, attendance and leave administration.
+- Bulk employee import from validated CSV files (up to 200 rows per request).
+- Candidate pipeline with hiring stages.
+- Onboarding checklists, shift scheduling and training records.
+- Performance reviews, payroll operations and downloadable offer letters.
+- Announcements, support queue, notifications and secure PDF document management.
+
+### Employee dashboard
+
+- Personal profile, payslip history and PDF payslip downloads.
+- Downloadable annual payroll/tax summary based on recorded payroll.
+- Attendance check-in/out and monthly attendance calendar.
+- Team directory, announcements, notifications and helpdesk tickets.
+- Personal onboarding, shift and training records.
+- Access to company-wide documents and documents assigned to the employee's signed-in email.
+
+The annual payroll/tax summary is informational. It is **not** a statutory Form 16; official tax certificates must be issued and verified through the employer's compliant payroll process.
+
+## Technology stack
+
+- **Frontend:** Preact, TypeScript, Vite, Axios and responsive CSS.
 - **Backend:** Node.js and Express.
-- **Database:** MongoDB with Mongoose.
-- **Authentication:** JSON Web Tokens and bcrypt password hashing.
-- **Email:** Nodemailer with configurable SMTP for verification and password reset.
-- **Deployment:** Configure the client and API for your hosting provider; production deployment and monitoring are not included in this repository.
+- **Database:** MongoDB with Mongoose schemas and indexes.
+- **Authentication and authorization:** JWT (HS256), bcrypt password hashing, server-side session/version checks and role-based route middleware.
+- **Email:** Nodemailer with environment-configured SMTP for email verification and password-reset OTP delivery.
+- **Documents and exports:** Protected PDF download endpoints, jsPDF reports/payslips and CSV exports that open in spreadsheet tools.
+- **Deployment:** No production hosting configuration is included. Configure HTTPS, environment secrets, MongoDB access controls, backups, monitoring and an approved deployment platform before launch.
 
-## Screenshots and demo
+## Screenshots
 
-Add screenshots or hosted image links here. Do not include real employee or payroll data.
+Replace these placeholders with sanitized screenshots. Never use real employee, candidate, customer or payroll data.
 
-| View | Screenshot |
+| Screen | Image |
 | --- | --- |
 | Login | `screenshots/login.png` |
 | Signup | `screenshots/signup.png` |
@@ -74,85 +71,89 @@ Add screenshots or hosted image links here. Do not include real employee or payr
 | HR dashboard | `screenshots/hr-dashboard.png` |
 | Employee dashboard | `screenshots/employee-dashboard.png` |
 
-**Demo video:** [Add a demo video link](https://example.com/)
-
 ## Installation and setup
 
 ### Prerequisites
 
 - Node.js 20 or later and npm.
-- MongoDB, local or hosted.
-- SMTP credentials for account verification and password reset (optional for local development).
+- A MongoDB instance (local or hosted).
+- SMTP credentials if email verification or password-reset email delivery is required.
 
-### 1. Configure the server
+### 1. Install dependencies
+
+From the repository root:
+
+```bash
+npm install
+cd server && npm install
+cd ../client && npm install
+cd ..
+```
+
+### 2. Configure the server
 
 ```bash
 cd server
-npm install
 cp .env.example .env
 ```
 
-Set the required values in `server/.env`; use your own local database and newly generated development credentials.
+Set the local values in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters, a restricted MongoDB user, and SMTP credentials from a dedicated account. Never commit this file.
 
-### 2. Configure the client
+### 3. Configure the client
 
 ```bash
 cd ../client
-npm install
-cp .env.example .env
+cp .env.example .env.local
 ```
 
-The development client proxies `/api` to `http://localhost:5000`. Set `VITE_API_URL` only when the API is hosted at a different base URL.
+The Vite development proxy forwards `/api` to the local API by default. Set `VITE_API_URL` only when the API uses a different base URL.
 
-### 3. Start the application
+### 4. Run the application
 
-In one terminal:
+Run the API and client in separate terminals from the repository root:
 
 ```bash
-cd server
-npm run dev
+npm run dev:server
+npm run dev:client
 ```
 
-In another terminal:
+The development client URL is printed by Vite. To build the client and run backend tests:
 
 ```bash
-cd client
-npm run dev
+npm run build
+npm test
 ```
 
-The Vite terminal prints the local client URL. Public registration creates employee accounts only; administrator and HR roles must be provisioned through a trusted server-side process.
+Public registration creates employee accounts only. Admin and HR accounts must be provisioned through a trusted process.
 
-### Development demo accounts
+### Optional local demo seed
 
-Demo accounts are disabled by default. To provision them for local development, set
-`ENABLE_DEMO_SEED=true` in `server/.env` while `NODE_ENV=development`, then
-restart the server. Do not enable this for shared or production databases.
-
-| Role | Login ID | Password |
-| --- | --- | --- |
-| Admin | `ADSA01011980` | `admin123` |
-| HR | `HRHM02021985` | `hr123` |
-| Employee | `EMEU03031990` | `emp123` |
-
-These public demo credentials are for local development and must never be used in production.
+Demo seeding is disabled by default and only runs in `NODE_ENV=development`. To enable it locally, set `ENABLE_DEMO_SEED=true` and provide the three demo email/password pairs listed in the environment-variable section. Each demo password must be unique and at least 16 characters. Do not enable demo seeding against shared or production databases.
 
 ## Environment variables
 
-Variable names only; configure values locally and never commit them.
+Names only; values belong in ignored local files or a managed secret store.
 
 ### Server
 
 - `PORT`
 - `NODE_ENV`
+- `ENABLE_DEMO_SEED`
 - `MONGO_URI`
 - `JWT_SECRET`
 - `CLIENT_ORIGINS`
 - `EMAIL_HOST`
 - `EMAIL_PORT`
+- `EMAIL_SECURE`
 - `EMAIL_USER`
 - `EMAIL_PASS`
 - `EMAIL_FROM`
-- `EMAIL_SECURE`
+- `DEMO_ADMIN_EMAIL`
+- `DEMO_ADMIN_PASSWORD`
+- `DEMO_HR_EMAIL`
+- `DEMO_HR_PASSWORD`
+- `DEMO_EMPLOYEE_EMAIL`
+- `DEMO_EMPLOYEE_PASSWORD`
 
 ### Client
 
@@ -160,22 +161,19 @@ Variable names only; configure values locally and never commit them.
 
 ## Security notes
 
-- `.env`, `.env.local`, dependency folders and generated build output are ignored by Git.
-- `.env.example` files contain placeholders only. Replace placeholders locally.
-- Never commit MongoDB credentials, SMTP/app passwords, JWT signing keys, OTP material or production data.
-- Rotate credentials immediately if they have ever been committed. Removing a file from the latest revision does not remove it from earlier Git history; clean history and coordinate any remote history rewrite before pushing.
-- Keep this repository private if it contains internal code. Do not expose production user or payroll data in screenshots or demo environments.
-
-## Payroll limitations
-
-Payroll figures are simplified application estimates and are not a jurisdiction-specific statutory payroll or tax calculation. Validate all deductions, tax documents and payslips with qualified payroll professionals before using them operationally.
+- `.env`, `.env.local`, `.env.*`, `node_modules`, generated builds and `.DS_Store` are excluded by `.gitignore`; placeholder `.env.example` files are retained.
+- Never commit MongoDB URIs, SMTP/app passwords, JWT signing keys, OTP material, local data exports or real HR/payroll documents.
+- Credentials found in local environment files were removed from this working tree, and earlier commits contain `.env` files. Rotate any MongoDB, SMTP and JWT credentials that were present before using this project again. Do not push existing Git history until those historical files have been purged; deleting current files does not remove historical copies.
+- Admin analytics and audit endpoints are role-protected. Document files are limited to PDF uploads, stored in MongoDB, downloadable only through authenticated endpoints, and restricted to the assigned employee when applicable.
+- Use TLS, least-privilege database credentials, secure deployment secrets, backups, dependency updates and production monitoring before exposing the application.
+- Payroll calculations and annual summaries are simplified application estimates, not jurisdiction-specific tax or legal advice.
 
 ## Roadmap
 
-- Recruitment pipeline and candidate tracking.
-- Onboarding checklists, shift/rota planning and training records.
-- A controlled production workflow for provisioning administrator and HR accounts.
-- Department management and historical headcount/attrition analytics.
-- Jurisdiction-specific payroll, tax documents and secure document storage.
-- XLSX/PDF reporting, configurable approval workflows and centralized rate limiting.
-- Production deployment automation, backups, monitoring and accessibility review.
+- Statutory payroll and tax-document generation with jurisdiction-specific validation and professional review.
+- Historical workforce snapshots and verified attrition reporting.
+- Richer analytics filters and scheduled exports.
+- External object storage, malware scanning, retention controls and document access expiry.
+- Configurable approvals, granular permissions and SSO/MFA.
+- Production deployment automation, centralized logging, monitoring and backup/restore exercises.
+- Accessibility and cross-browser review.

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import axios from 'axios'
-import { apiUrl } from './api'
-import { logAudit } from './audit'
+import { apiUrl } from '../services/api'
+import { logAudit } from '../utils/audit'
 
 type Employee = {
   _id: string

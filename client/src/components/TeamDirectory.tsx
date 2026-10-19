@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import axios from 'axios'
-import { apiUrl } from './api'
+import { apiUrl } from '../services/api'
+import useDebouncedValue from '../hooks/useDebouncedValue'
 
 type TeamMember = {
   _id: string
@@ -15,6 +16,7 @@ export default function TeamDirectory({ token, onUnauthorized }: { token: string
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 150)
 
   useEffect(() => {
     let active = true
@@ -36,11 +38,11 @@ export default function TeamDirectory({ token, onUnauthorized }: { token: string
   }, [token])
 
   const visibleMembers = useMemo(() => {
-    const query = search.trim().toLowerCase()
+    const query = debouncedSearch.trim().toLowerCase()
     return members.filter((member) => !query || [
       member.name, member.email, member.department, member.designation,
     ].some((value) => value?.toLowerCase().includes(query)))
-  }, [members, search])
+  }, [members, debouncedSearch])
 
   return (
     <section className="panel team-directory">

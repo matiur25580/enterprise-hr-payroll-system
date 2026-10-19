@@ -1,6 +1,6 @@
 const express = require('express');
 const AuditEvent = require('../models/AuditEvent');
-const { verifyToken, authorize } = require('../middleware/auth');
+const { verifyToken, authorize } = require('../middlewares/auth');
 
 const router = express.Router();
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import axios from 'axios'
-import { apiUrl } from './api'
+import { apiUrl } from '../services/api'
 
 type LeaveRequest = {
   _id: string

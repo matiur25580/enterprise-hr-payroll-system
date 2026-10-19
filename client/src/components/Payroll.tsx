@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import axios from 'axios'
 import jsPDF from 'jspdf'
-import { apiUrl } from './api'
-import { logAudit } from './audit'
+import { apiUrl } from '../services/api'
+import { logAudit } from '../utils/audit'
 
 type PayrollRecord = {
   _id: string

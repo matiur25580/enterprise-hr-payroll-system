@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const Employee = require('../models/Employee');
 const LeaveRequest = require('../models/LeaveRequest');
-const { verifyToken, authorize } = require('../middleware/auth');
+const { verifyToken, authorize } = require('../middlewares/auth');
 const recordWorkplaceActivity = require('../utils/activity');
 const recordAudit = require('../utils/audit');
 

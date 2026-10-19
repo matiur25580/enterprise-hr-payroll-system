@@ -5,7 +5,7 @@ const Employee = require('../models/Employee');
 const OnboardingTask = require('../models/OnboardingTask');
 const Shift = require('../models/Shift');
 const TrainingRecord = require('../models/TrainingRecord');
-const { verifyToken, authorize } = require('../middleware/auth');
+const { verifyToken, authorize } = require('../middlewares/auth');
 const recordAudit = require('../utils/audit');
 
 const router = express.Router();

@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks'
 import jsPDF from 'jspdf'
-import { logAudit } from './audit'
+import { logAudit } from '../utils/audit'
 
 type Employee = {
   _id: string

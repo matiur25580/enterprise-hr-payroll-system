@@ -1,22 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import axios from 'axios'
-import AddEmployee from './AddEmployee'
-import Payroll from './Payroll'
-import Attendance from './Attendance'
-import Leave from './Leave'
-import SalaryChart from './SalaryChart'
-import AuditLog from './AuditLog'
-import OfferLetter from './OfferLetter'
-import Performance from './Performance'
-import Announcements from './Announcements'
-import BulkEmployeeImport from './BulkEmployeeImport'
-import Support from './Support'
-import TeamDirectory from './TeamDirectory'
-import Notifications from './Notifications'
-import PeopleOperations from './PeopleOperations'
-import { logAudit } from './audit'
-import { apiUrl } from './api'
-import { type Role, type UserSession } from './role'
+import AddEmployee from '../components/AddEmployee'
+import Payroll from '../components/Payroll'
+import Attendance from '../components/Attendance'
+import Leave from '../components/Leave'
+import SalaryChart from '../components/SalaryChart'
+import AuditLog from '../components/AuditLog'
+import OfferLetter from '../components/OfferLetter'
+import Performance from '../components/Performance'
+import Announcements from '../components/Announcements'
+import BulkEmployeeImport from '../components/BulkEmployeeImport'
+import Support from '../components/Support'
+import TeamDirectory from '../components/TeamDirectory'
+import Notifications from '../components/Notifications'
+import PeopleOperations from '../components/PeopleOperations'
+import DepartmentManagement from '../components/DepartmentManagement'
+import WorkforceAnalytics from '../components/WorkforceAnalytics'
+import DocumentManagement from '../components/DocumentManagement'
+import { logAudit } from '../utils/audit'
+import { apiUrl } from '../services/api'
+import { type Role, type UserSession } from '../utils/role'
 
 type Employee = {
   _id: string
@@ -29,7 +32,7 @@ type Employee = {
   joiningDate?: string
 }
 
-type Section = 'overview' | 'people' | 'profile' | 'payroll' | 'attendance' | 'leave' | 'performance' | 'offers' | 'audit' | 'announcements' | 'support' | 'team' | 'import' | 'notifications' | 'peopleOps'
+type Section = 'overview' | 'people' | 'profile' | 'payroll' | 'attendance' | 'leave' | 'performance' | 'offers' | 'audit' | 'announcements' | 'support' | 'team' | 'import' | 'notifications' | 'peopleOps' | 'departments' | 'analytics' | 'documents'
 
 type DashboardProps = {
   session: UserSession
@@ -60,6 +63,9 @@ const roleContent: Record<Role, { title: string; description: string; nav: Array
     nav: [
       { id: 'overview', label: 'Overview', icon: '◫' },
       { id: 'people', label: 'Workforce', icon: '♙' },
+      { id: 'departments', label: 'Departments', icon: '◫' },
+      { id: 'analytics', label: 'Workforce analytics', icon: '▥' },
+      { id: 'documents', label: 'Documents', icon: '▤' },
       { id: 'payroll', label: 'Payroll', icon: '▤' },
       { id: 'attendance', label: 'Attendance', icon: '◷' },
       { id: 'leave', label: 'Leave & requests', icon: '▧' },
@@ -84,6 +90,7 @@ const roleContent: Record<Role, { title: string; description: string; nav: Array
       { id: 'offers', label: 'Offer letters', icon: '✉' },
       { id: 'payroll', label: 'Payroll', icon: '▤' },
       { id: 'import', label: 'Bulk import', icon: '⇧' },
+      { id: 'documents', label: 'Documents', icon: '▤' },
       { id: 'announcements', label: 'Announcements', icon: '◉' },
       { id: 'support', label: 'Support queue', icon: '?' },
       { id: 'notifications', label: 'Notifications', icon: '◉' },
@@ -100,6 +107,7 @@ const roleContent: Record<Role, { title: string; description: string; nav: Array
       { id: 'attendance', label: 'My attendance', icon: '◷' },
       { id: 'leave', label: 'My leave', icon: '▧' },
       { id: 'team', label: 'Team directory', icon: '♧' },
+      { id: 'documents', label: 'My documents', icon: '▤' },
       { id: 'announcements', label: 'Announcements', icon: '◉' },
       { id: 'support', label: 'Help & support', icon: '?' },
       { id: 'notifications', label: 'Notifications', icon: '◉' },
@@ -125,6 +133,9 @@ const titleForSection: Record<Section, string> = {
   import: 'Bulk employee import',
   notifications: 'Notifications inbox',
   peopleOps: 'Talent & employee onboarding',
+  departments: 'Department management',
+  analytics: 'Workforce analytics',
+  documents: 'Documents',
 }
 
 function StatCard({ label, value, note, icon, tone = 'blue' }: { label: string; value: string; note: string; icon: string; tone?: string }) {
@@ -563,6 +574,9 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
     if (activeSection === 'performance') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">GROWTH & DEVELOPMENT</span><h2>{role === 'Employee' ? 'My performance reviews' : 'Performance reviews'}</h2></div></div><Performance employees={role === 'Employee' ? ownEmployees : employees} token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'offers' && role !== 'Employee') return <section className="panel module-panel"><OfferLetter employees={employees} onNotify={notify} /></section>
     if (activeSection === 'audit' && role === 'Admin') return <section className="panel module-panel"><AuditLog token={session.token} onUnauthorized={onLogout} /></section>
+    if (activeSection === 'departments' && role === 'Admin') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">ORGANIZATION STRUCTURE</span><h2>Department management</h2></div></div><DepartmentManagement token={session.token} onNotify={notify} onUnauthorized={onLogout} /></section>
+    if (activeSection === 'analytics' && role === 'Admin') return <WorkforceAnalytics token={session.token} onNotify={notify} onUnauthorized={onLogout} />
+    if (activeSection === 'documents') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">SECURE FILES</span><h2>{role === 'Employee' ? 'My documents' : 'Document management'}</h2></div></div><DocumentManagement token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'announcements') return <Announcements token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} />
     if (activeSection === 'support') return <Support token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} />
     if (activeSection === 'team' && role === 'Employee') return <TeamDirectory token={session.token} onUnauthorized={onLogout} />

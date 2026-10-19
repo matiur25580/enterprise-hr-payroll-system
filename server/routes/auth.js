@@ -5,8 +5,8 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const EmailChallenge = require('../models/EmailChallenge');
 const sendOtpEmail = require('../utils/email');
-const createRateLimit = require('../middleware/rateLimit');
-const { verifyToken } = require('../middleware/auth');
+const createRateLimit = require('../middlewares/rateLimit');
+const { verifyToken } = require('../middlewares/auth');
 
 const router = express.Router();
 const OTP_LIFETIME_MS = 60 * 1000;

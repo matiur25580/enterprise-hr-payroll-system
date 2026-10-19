@@ -2,8 +2,8 @@ import { useEffect, useState } from 'preact/hooks'
 import axios from 'axios'
 import Login from './Login'
 import Dashboard from './Dashboard'
-import { apiUrl } from './api'
-import type { Role, UserSession } from './role'
+import { apiUrl } from '../services/api'
+import type { Role, UserSession } from '../utils/role'
 
 const roleNames: Record<string, Role> = {
   admin: 'Admin',

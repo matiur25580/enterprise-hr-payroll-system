@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const Department = require('../models/Department');
 const Employee = require('../models/Employee');
-const { verifyToken, authorize } = require('../middleware/auth');
+const { verifyToken, authorize } = require('../middlewares/auth');
 const recordAudit = require('../utils/audit');
 
 const router = express.Router();

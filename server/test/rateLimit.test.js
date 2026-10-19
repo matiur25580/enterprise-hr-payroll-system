@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const createRateLimit = require('../middleware/rateLimit');
-const { authorize } = require('../middleware/auth');
+const createRateLimit = require('../middlewares/rateLimit');
+const { authorize } = require('../middlewares/auth');
 
 function responseRecorder() {
   return {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import axios from 'axios'
-import { apiUrl } from './api'
-import type { Role } from './role'
+import { apiUrl } from '../services/api'
+import type { Role } from '../utils/role'
 
 type Employee = { _id: string; name: string; department: string }
 type Review = {
