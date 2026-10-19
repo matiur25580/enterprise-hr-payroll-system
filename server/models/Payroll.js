@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
+<<<<<<< HEAD
 const payrollSchema = new mongoose.Schema({
+=======
+module.exports = mongoose.model('Payroll', new mongoose.Schema({
+>>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
   employeeEmail: { type: String, required: true, lowercase: true, trim: true },
   employeeName: { type: String, required: true, trim: true },
@@ -16,7 +20,11 @@ const payrollSchema = new mongoose.Schema({
   status: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' },
   paidAt: { type: Date },
   paidByEmail: { type: String, lowercase: true, trim: true }
+<<<<<<< HEAD
 }, { timestamps: true });
 payrollSchema.index({ employeeId: 1, month: 1 }, { unique: true });
 
 module.exports = mongoose.model('Payroll', payrollSchema);
+=======
+},{timestamps:true}));
+>>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018

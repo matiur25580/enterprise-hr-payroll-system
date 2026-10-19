@@ -1,7 +1,12 @@
 const express = require('express');
+<<<<<<< HEAD
 const mongoose = require('mongoose');
 const Activity = require('../models/Activity');
 const { verifyToken, authorize } = require('../middlewares/auth');
+=======
+const Activity = require('../models/Activity');
+const { verifyToken, authorize } = require('../middleware/auth');
+>>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
 
 const router = express.Router();
 
@@ -21,6 +26,7 @@ router.get('/', verifyToken, authorize('admin', 'hr', 'employee'), async (req, r
   }
 });
 
+<<<<<<< HEAD
 router.patch('/:id/read', verifyToken, authorize('admin', 'hr', 'employee'), async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     return res.status(400).json({ message: 'Invalid activity ID.' });
@@ -41,4 +47,6 @@ router.patch('/:id/read', verifyToken, authorize('admin', 'hr', 'employee'), asy
   }
 });
 
+=======
+>>>>>>> 41e042fcd913703e99b4dc04bb26337fa33ff018
 module.exports = router;
