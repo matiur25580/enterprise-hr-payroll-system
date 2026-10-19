@@ -16,6 +16,8 @@ Smart HR & Payroll is a web application for small and mid-sized organizations. I
 
 - Review workforce and payroll summaries.
 - Manage employee records, attendance, leave, offer letters and performance reviews.
+- Review payroll reports and salary distribution.
+- Track talent candidates through recruiting stages and oversee onboarding tasks.
 - Publish organization announcements.
 - Review an administrative audit trail and support queue.
 
@@ -23,6 +25,7 @@ Smart HR & Payroll is a web application for small and mid-sized organizations. I
 
 - Manage employee records, attendance, leave, offers and payroll operations.
 - Import employees from validated CSV files.
+- Track a candidate pipeline and assign employee onboarding checklists.
 - Create and review quarterly performance records.
 - Triage employee support requests and view company announcements.
 
@@ -32,6 +35,7 @@ Smart HR & Payroll is a web application for small and mid-sized organizations. I
 - Review attendance and submit leave requests.
 - Browse the team directory and company announcements.
 - Raise and follow up on HR/helpdesk support requests.
+- Review notifications, assigned onboarding, shift and training records.
 
 ## Key features
 
@@ -41,8 +45,13 @@ Smart HR & Payroll is a web application for small and mid-sized organizations. I
 - Leave request and review workflow.
 - Monthly payroll snapshots and employee payslip downloads.
 - Quarterly performance reviews.
+- Hiring pipeline and onboarding task tracking.
 - Admin audit events, announcements and employee support tickets.
+- Employee notifications inbox and annual payroll tax summaries based on recorded pay data.
 - Responsive layouts, loading/empty/error states and a consistent dark theme.
+
+Annual payroll tax summaries are informational exports of saved payroll records, not
+statutory Form 16 certificates.
 
 ## Technology
 
@@ -115,7 +124,9 @@ The Vite terminal prints the local client URL. Public registration creates emplo
 
 ### Development demo accounts
 
-The server seeds the following sample accounts in non-production environments only:
+Demo accounts are disabled by default. To provision them for local development, set
+`ENABLE_DEMO_SEED=true` in `server/.env` while `NODE_ENV=development`, then
+restart the server. Do not enable this for shared or production databases.
 
 | Role | Login ID | Password |
 | --- | --- | --- |

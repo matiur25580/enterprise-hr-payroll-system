@@ -12,9 +12,11 @@ import Announcements from './Announcements'
 import BulkEmployeeImport from './BulkEmployeeImport'
 import Support from './Support'
 import TeamDirectory from './TeamDirectory'
+import Notifications from './Notifications'
+import PeopleOperations from './PeopleOperations'
 import { logAudit } from './audit'
 import { apiUrl } from './api'
-import { canAdd, canDelete, canEdit, type Role, type UserSession } from './role'
+import { type Role, type UserSession } from './role'
 
 type Employee = {
   _id: string
@@ -27,7 +29,7 @@ type Employee = {
   joiningDate?: string
 }
 
-type Section = 'overview' | 'people' | 'profile' | 'payroll' | 'attendance' | 'leave' | 'performance' | 'offers' | 'audit' | 'announcements' | 'support' | 'team' | 'import'
+type Section = 'overview' | 'people' | 'profile' | 'payroll' | 'attendance' | 'leave' | 'performance' | 'offers' | 'audit' | 'announcements' | 'support' | 'team' | 'import' | 'notifications' | 'peopleOps'
 
 type DashboardProps = {
   session: UserSession
@@ -66,6 +68,8 @@ const roleContent: Record<Role, { title: string; description: string; nav: Array
       { id: 'audit', label: 'Audit trail', icon: '☷' },
       { id: 'announcements', label: 'Announcements', icon: '◉' },
       { id: 'support', label: 'Support queue', icon: '?' },
+      { id: 'notifications', label: 'Notifications', icon: '◉' },
+      { id: 'peopleOps', label: 'Talent & onboarding', icon: '✦' },
     ],
   },
   HR: {
@@ -82,6 +86,8 @@ const roleContent: Record<Role, { title: string; description: string; nav: Array
       { id: 'import', label: 'Bulk import', icon: '⇧' },
       { id: 'announcements', label: 'Announcements', icon: '◉' },
       { id: 'support', label: 'Support queue', icon: '?' },
+      { id: 'notifications', label: 'Notifications', icon: '◉' },
+      { id: 'peopleOps', label: 'Hiring & onboarding', icon: '✦' },
     ],
   },
   Employee: {
@@ -96,7 +102,9 @@ const roleContent: Record<Role, { title: string; description: string; nav: Array
       { id: 'team', label: 'Team directory', icon: '♧' },
       { id: 'announcements', label: 'Announcements', icon: '◉' },
       { id: 'support', label: 'Help & support', icon: '?' },
+      { id: 'notifications', label: 'Notifications', icon: '◉' },
       { id: 'performance', label: 'My growth', icon: '↗' },
+      { id: 'peopleOps', label: 'Onboarding checklist', icon: '✦' },
     ],
   },
 }
@@ -115,6 +123,8 @@ const titleForSection: Record<Section, string> = {
   support: 'Help & support',
   team: 'Team directory',
   import: 'Bulk employee import',
+  notifications: 'Notifications inbox',
+  peopleOps: 'Talent & employee onboarding',
 }
 
 function StatCard({ label, value, note, icon, tone = 'blue' }: { label: string; value: string; note: string; icon: string; tone?: string }) {
@@ -281,9 +291,14 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [search, setSearch] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState('All')
+  const [editingEmployeeId, setEditingEmployeeId] = useState('')
+  const [employeeEdit, setEmployeeEdit] = useState({ salary: '', department: '' })
+  const [savingEmployeeId, setSavingEmployeeId] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const role = session.role
+  const canManagePeople = role === 'Admin' || role === 'HR'
+  const canRemovePeople = role === 'Admin'
   const ownEmployees = useMemo(
     () => employees.filter((employee) => employee.email.toLowerCase() === session.email.toLowerCase()),
     [employees, session.email],
@@ -388,7 +403,7 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
   }
 
   const handleDelete = async (person: Employee) => {
-    if (!canDelete() || !confirm(`Remove ${person.name} from the employee directory?`)) return
+    if (!canRemovePeople || !confirm(`Remove ${person.name} from the employee directory?`)) return
     try {
       await axios.delete(`${apiUrl}/api/employees/${person._id}`, {
         headers: { Authorization: `Bearer ${session.token}` },
@@ -396,33 +411,45 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
       logAudit('DELETE', `Deleted employee ${person.name}`)
       await fetchEmployees()
       notify(`${person.name} was removed successfully.`)
-    } catch {
-      notify(`Could not delete ${person.name}. Please try again.`, 'error')
-      setLoadError(`Could not delete ${person.name}. Please try again.`)
+    } catch (requestError) {
+      const message = axios.isAxiosError<{ message?: string }>(requestError)
+        ? requestError.response?.data?.message ?? `Could not delete ${person.name}. Please try again.`
+        : `Could not delete ${person.name}. Please try again.`
+      notify(message, 'error')
+      setLoadError(message)
     }
   }
 
-  const handleEdit = async (person: Employee) => {
-    if (!canEdit()) return
-    const salary = prompt('Monthly salary:', String(person.salary))
-    if (salary === null) return
-    const amount = Number(salary)
-    if (!Number.isFinite(amount) || amount < 0) {
-      notify('Enter a valid, non-negative salary amount.', 'error')
+  const handleEdit = (person: Employee) => {
+    if (!canManagePeople) return
+    setEditingEmployeeId(person._id)
+    setEmployeeEdit({ salary: String(person.salary), department: person.department })
+  }
+
+  const saveEmployeeEdit = async (person: Employee) => {
+    const amount = Number(employeeEdit.salary)
+    const department = employeeEdit.department.trim()
+    if (!Number.isFinite(amount) || amount < 0 || !department || department.length > 120) {
+      notify('Enter a valid, non-negative salary and a department of at most 120 characters.', 'error')
       return
     }
-    const department = prompt('Department:', person.department)
-    if (department === null) return
+    setSavingEmployeeId(person._id)
     try {
       await axios.put(`${apiUrl}/api/employees/${person._id}`, { salary: amount, department }, {
         headers: { Authorization: `Bearer ${session.token}` },
       })
       logAudit('EDIT', `Updated ${person.name} employee details`)
+      setEditingEmployeeId('')
       await fetchEmployees()
       notify(`${person.name}'s details were updated successfully.`)
-    } catch {
-      notify(`Could not update ${person.name}. Please try again.`, 'error')
-      setLoadError(`Could not update ${person.name}. Please try again.`)
+    } catch (requestError) {
+      const message = axios.isAxiosError<{ message?: string }>(requestError)
+        ? requestError.response?.data?.message ?? `Could not update ${person.name}. Please try again.`
+        : `Could not update ${person.name}. Please try again.`
+      notify(message, 'error')
+      setLoadError(message)
+    } finally {
+      setSavingEmployeeId('')
     }
   }
 
@@ -451,7 +478,7 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
 
   const renderPeople = () => (
     <>
-      {canAdd() && (
+      {canManagePeople && (
         <section className="panel add-employee-panel">
           <div className="panel-heading"><div><span className="eyebrow">EMPLOYEE LIFECYCLE</span><h2>Add a team member</h2></div></div>
           <AddEmployee
@@ -476,16 +503,34 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
         </div>
         <div className="table-wrap">
           <table className="data-table">
-            <thead><tr><th>Employee</th><th>Department</th><th>Job title</th><th>Monthly salary</th>{canEdit() && <th>Actions</th>}</tr></thead>
+            <thead><tr><th>Employee</th><th>Department</th><th>Job title</th><th>Monthly salary</th>{canManagePeople && <th>Actions</th>}</tr></thead>
             <tbody>
               {filteredEmployees.map((person) => (
                 <tr key={person._id || person.email}>
                   <td><div className="person-cell"><span className="avatar">{person.name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()}</span><span><strong>{person.name}</strong><small>{person.email}</small></span></div></td>
-                  <td>{person.department || '—'}</td><td>{person.designation || '—'}</td><td>{currency.format(Number(person.salary || 0))}</td>
-                  {canEdit() && <td className="row-actions"><button className="table-action" onClick={() => void handleEdit(person)}>Edit</button>{canDelete() && <button className="table-action danger-action" onClick={() => void handleDelete(person)}>Remove</button>}</td>}
+                  <td>{editingEmployeeId === person._id
+                    ? <input aria-label={`Department for ${person.name}`} maxLength={120} value={employeeEdit.department} onInput={(event) => setEmployeeEdit({ ...employeeEdit, department: event.currentTarget.value })} />
+                    : person.department || '—'}</td>
+                  <td>{person.designation || '—'}</td>
+                  <td>{editingEmployeeId === person._id
+                    ? <input aria-label={`Monthly salary for ${person.name}`} type="number" min="0" step="0.01" value={employeeEdit.salary} onInput={(event) => setEmployeeEdit({ ...employeeEdit, salary: event.currentTarget.value })} />
+                    : currency.format(Number(person.salary || 0))}</td>
+                  {canManagePeople && <td className="row-actions">
+                    {editingEmployeeId === person._id ? (
+                      <>
+                        <button className="table-action" disabled={savingEmployeeId === person._id} onClick={() => void saveEmployeeEdit(person)}>{savingEmployeeId === person._id ? 'Saving…' : 'Save'}</button>
+                        <button className="table-action" disabled={savingEmployeeId === person._id} onClick={() => setEditingEmployeeId('')}>Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="table-action" onClick={() => handleEdit(person)}>Edit</button>
+                        {canRemovePeople && <button className="table-action danger-action" onClick={() => void handleDelete(person)}>Remove</button>}
+                      </>
+                    )}
+                  </td>}
                 </tr>
               ))}
-              {!filteredEmployees.length && <tr><td colSpan={canEdit() ? 5 : 4} className="table-empty">No employees match these filters.</td></tr>}
+              {!filteredEmployees.length && <tr><td colSpan={canManagePeople ? 5 : 4} className="table-empty">No employees match these filters.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -521,6 +566,8 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
     if (activeSection === 'announcements') return <Announcements token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} />
     if (activeSection === 'support') return <Support token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} />
     if (activeSection === 'team' && role === 'Employee') return <TeamDirectory token={session.token} onUnauthorized={onLogout} />
+    if (activeSection === 'notifications') return <Notifications token={session.token} email={session.email} role={role} onUnauthorized={onLogout} />
+    if (activeSection === 'peopleOps') return <PeopleOperations employees={role === 'Employee' ? ownEmployees : employees} token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} />
     if (activeSection === 'import' && role === 'HR') return <BulkEmployeeImport token={session.token} onImported={() => void fetchEmployees()} onNotify={notify} onUnauthorized={onLogout} />
     return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={departments} onNavigate={navigateTo} />
   }

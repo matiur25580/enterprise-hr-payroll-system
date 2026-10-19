@@ -14,10 +14,12 @@ const activitySchema = new mongoose.Schema({
       'leave-requested',
       'leave-reviewed',
       'attendance-recorded',
-      'payroll-issued'
+      'payroll-issued',
+      'performance-reviewed'
     ]
   },
-  message: { type: String, required: true }
+  message: { type: String, required: true },
+  readBy: { type: [String], default: [] }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Activity', activitySchema);

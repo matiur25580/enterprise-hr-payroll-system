@@ -23,12 +23,12 @@ const verifyToken = async (req, res, next) => {
   }
 
   try {
-    const user = await User.findById(decoded.id).select('role email tokenVersion').lean();
+    const user = await User.findById(decoded.id).select('name role email tokenVersion').lean();
     if (!user || decoded.role !== user.role || decoded.email !== user.email
       || decoded.tokenVersion !== (user.tokenVersion ?? 0)) {
       return res.status(401).json({ message: 'Your session is no longer valid. Please sign in again.' });
     }
-    req.user = { id: String(user._id), role: user.role, email: user.email };
+    req.user = { id: String(user._id), name: user.name, role: user.role, email: user.email };
     return next();
   } catch (error) {
     console.error('Could not validate authenticated user:', error);

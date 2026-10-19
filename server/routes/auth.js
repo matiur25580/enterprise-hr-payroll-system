@@ -6,6 +6,7 @@ const User = require('../models/User');
 const EmailChallenge = require('../models/EmailChallenge');
 const sendOtpEmail = require('../utils/email');
 const createRateLimit = require('../middleware/rateLimit');
+const { verifyToken } = require('../middleware/auth');
 
 const router = express.Router();
 const OTP_LIFETIME_MS = 60 * 1000;
@@ -13,6 +14,17 @@ const MAX_OTP_ATTEMPTS = 5;
 const rolePrefixes = { admin: 'AD', hr: 'HR', employee: 'EM' };
 const loginRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many sign-in attempts. Try again later.' });
 const otpRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many verification requests. Try again later.' });
+
+router.get('/session', verifyToken, (req, res) => {
+  res.json({
+    user: {
+      id: req.user.id,
+      name: req.user.name,
+      email: req.user.email,
+      role: req.user.role,
+    },
+  });
+});
 
 function normalizeEmail(email) {
   return typeof email === 'string' ? email.trim().toLowerCase() : '';

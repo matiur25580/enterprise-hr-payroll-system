@@ -34,8 +34,8 @@ module.exports = seedDemoUsers;
 if (require.main === module) {
   require('dotenv').config();
 
-  if (process.env.NODE_ENV === 'production') {
-    console.error('Demo account seeding is disabled in production.');
+  if (process.env.NODE_ENV !== 'development' || process.env.ENABLE_DEMO_SEED !== 'true') {
+    console.error('Set NODE_ENV=development and ENABLE_DEMO_SEED=true to seed demo accounts.');
     process.exitCode = 1;
   } else {
   mongoose.connect(process.env.MONGO_URI)

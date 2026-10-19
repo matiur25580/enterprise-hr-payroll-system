@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-module.exports = mongoose.model('Payroll', new mongoose.Schema({
+const payrollSchema = new mongoose.Schema({
   employeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: true },
   employeeEmail: { type: String, required: true, lowercase: true, trim: true },
   employeeName: { type: String, required: true, trim: true },
@@ -16,4 +16,7 @@ module.exports = mongoose.model('Payroll', new mongoose.Schema({
   status: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' },
   paidAt: { type: Date },
   paidByEmail: { type: String, lowercase: true, trim: true }
-},{timestamps:true}));
+}, { timestamps: true });
+payrollSchema.index({ employeeId: 1, month: 1 }, { unique: true });
+
+module.exports = mongoose.model('Payroll', payrollSchema);

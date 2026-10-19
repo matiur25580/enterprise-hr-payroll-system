@@ -13,6 +13,8 @@ const auditRoutes = require('./routes/audit');
 const announcementRoutes = require('./routes/announcements');
 const supportRoutes = require('./routes/support');
 const performanceRoutes = require('./routes/performance');
+const peopleRoutes = require('./routes/people');
+const departmentRoutes = require('./routes/departments');
 const seedDemoUsers = require('./seedDemoUsers');
 const { verifyToken, authorize } = require('./middleware/auth');
 
@@ -54,6 +56,8 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/performance', performanceRoutes);
+app.use('/api/people', peopleRoutes);
+app.use('/api/departments', departmentRoutes);
 
 app.get('/api/admin-only', verifyToken, authorize('admin'), (req, res) => {
   res.json({ message: `Welcome admin ${req.user.id}` });
@@ -80,10 +84,10 @@ async function startServer() {
   await mongoose.connect(process.env.MONGO_URI);
   console.log('MongoDB connected');
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.ENABLE_DEMO_SEED === 'true' && process.env.NODE_ENV === 'development') {
     await seedDemoUsers();
   } else {
-    console.log('Demo accounts are disabled in production');
+    console.log('Demo account seeding is disabled');
   }
 
   app.listen(port, () => console.log(`Server running on port ${port}`));

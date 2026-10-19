@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const createRateLimit = require('../middleware/rateLimit');
+const { authorize } = require('../middleware/auth');
 
 function responseRecorder() {
   return {
@@ -47,4 +48,27 @@ test('rate limiter keeps independent request counts per client IP', () => {
   assert.equal(nextCalls, 2);
   assert.equal(firstResponse.statusCode, 200);
   assert.equal(secondResponse.statusCode, 200);
+});
+
+test('role authorization blocks missing and disallowed roles', () => {
+  const middleware = authorize('admin');
+  const response = responseRecorder();
+  let nextCalls = 0;
+
+  middleware({}, response, () => { nextCalls += 1; });
+  middleware({ user: { role: 'employee' } }, response, () => { nextCalls += 1; });
+
+  assert.equal(nextCalls, 0);
+  assert.equal(response.statusCode, 403);
+  assert.deepEqual(response.payload, { message: 'Access denied' });
+});
+
+test('role authorization allows only an explicitly configured role', () => {
+  const response = responseRecorder();
+  let nextCalls = 0;
+
+  authorize('admin', 'hr')({ user: { role: 'hr' } }, response, () => { nextCalls += 1; });
+
+  assert.equal(nextCalls, 1);
+  assert.equal(response.statusCode, 200);
 });

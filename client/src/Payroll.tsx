@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useMemo, useState } from 'preact/hooks'
 import axios from 'axios'
 import jsPDF from 'jspdf'
 import { apiUrl } from './api'
@@ -46,12 +46,25 @@ const monthLabel = (month: string) => {
   return new Date(year, value - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 }
 
+const financialYearForMonth = (month: string) => {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const startYear = monthNumber >= 4 ? year : year - 1
+  return `${startYear}-${startYear + 1}`
+}
+
+const currentFinancialYear = () => financialYearForMonth(currentMonth())
+
 export default function Payroll({ token, employeeSelfService, onNotify, onUnauthorized }: PayrollProps) {
   const [records, setRecords] = useState<PayrollRecord[]>([])
   const [month, setMonth] = useState(currentMonth)
+  const [taxYear, setTaxYear] = useState(currentFinancialYear)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const availableTaxYears = useMemo(
+    () => [...new Set([currentFinancialYear(), ...records.map((record) => financialYearForMonth(record.month))])].sort().reverse(),
+    [records],
+  )
 
   const loadPayroll = async () => {
     try {
@@ -154,8 +167,104 @@ export default function Payroll({ token, employeeSelfService, onNotify, onUnauth
       doc.save(`${record.month}-${record.employeeName.replace(/[^a-z0-9-]/gi, '-')}-payslip.pdf`)
       logAudit('PAYSLIP', `Downloaded ${record.month} payslip for ${record.employeeName}`)
       onNotify(`Payslip for ${monthLabel(record.month)} downloaded successfully.`)
-    } catch {
+    } catch (generationError) {
+      console.error('Could not create payslip PDF:', generationError)
       onNotify('Could not create the payslip PDF. Please try again.', 'error')
+    }
+  }
+
+  const downloadAnnualTaxSummary = () => {
+    const [startYear, endYear] = taxYear.split('-').map(Number)
+    const yearRecords = records.filter((record) => {
+      const [year, monthNumber] = record.month.split('-').map(Number)
+      return (year === startYear && monthNumber >= 4) || (year === endYear && monthNumber <= 3)
+    })
+    if (!yearRecords.length) {
+      onNotify(`No payroll records are available for financial year ${taxYear}.`, 'error')
+      return
+    }
+
+    try {
+      const totals = yearRecords.reduce((sum, record) => ({
+        gross: sum.gross + record.grossSalary,
+        tax: sum.tax + record.tax,
+        providentFund: sum.providentFund + record.pf,
+        net: sum.net + record.net,
+      }), { gross: 0, tax: 0, providentFund: 0, net: 0 })
+      const doc = new jsPDF()
+      doc.setFontSize(18)
+      doc.text('Annual payroll tax summary', 20, 22)
+      doc.setFontSize(11)
+      doc.text(`Financial year: ${taxYear}`, 20, 36)
+      doc.text(`Employee: ${yearRecords[0].employeeName}`, 20, 48)
+      doc.text(`Email: ${yearRecords[0].employeeEmail}`, 20, 58)
+      doc.text(`Payroll periods recorded: ${yearRecords.length}`, 20, 70)
+      doc.text(`Gross pay recorded: ${currency.format(totals.gross)}`, 20, 86)
+      doc.text(`Tax withheld recorded: ${currency.format(totals.tax)}`, 20, 98)
+      doc.text(`Provident fund recorded: ${currency.format(totals.providentFund)}`, 20, 110)
+      doc.text(`Net pay recorded: ${currency.format(totals.net)}`, 20, 122)
+      doc.setFontSize(9)
+      doc.text(doc.splitTextToSize(
+        'This summary reflects payroll records available in this system. It is not a statutory Form 16 or a substitute for an employer-issued tax certificate.',
+        170,
+      ), 20, 145)
+      doc.save(`annual-payroll-tax-summary-${taxYear}.pdf`)
+      logAudit('TAX SUMMARY', `Downloaded annual tax summary for ${taxYear}`)
+      onNotify(`Annual tax summary for ${taxYear} downloaded.`)
+    } catch (generationError) {
+      console.error('Could not generate annual tax summary:', generationError)
+      onNotify('Could not create the annual tax summary PDF. Please try again.', 'error')
+    }
+  }
+
+  const exportPayrollReport = () => {
+    if (!records.length) {
+      onNotify('There are no payroll records to export.', 'error')
+      return
+    }
+    try {
+      const doc = new jsPDF({ orientation: 'landscape' })
+      const totals = records.reduce((sum, record) => ({
+        gross: sum.gross + record.grossSalary,
+        tax: sum.tax + record.tax,
+        net: sum.net + record.net,
+      }), { gross: 0, tax: 0, net: 0 })
+      doc.setFontSize(16)
+      doc.text('Payroll register report', 14, 18)
+      doc.setFontSize(9)
+      doc.text(`Generated ${new Date().toLocaleString()} · ${records.length} payroll record(s)`, 14, 25)
+      doc.text(`Gross total: ${currency.format(totals.gross)} · Tax withheld: ${currency.format(totals.tax)} · Net payable: ${currency.format(totals.net)}`, 14, 32)
+      let y = 43
+      doc.setFont('helvetica', 'bold')
+      doc.text('Period', 14, y)
+      doc.text('Employee', 45, y)
+      doc.text('Email', 112, y)
+      doc.text('Gross', 190, y)
+      doc.text('Tax', 225, y)
+      doc.text('Net', 255, y)
+      doc.text('Status', 278, y)
+      doc.setFont('helvetica', 'normal')
+      y += 7
+      for (const record of records) {
+        if (y > 190) {
+          doc.addPage()
+          y = 18
+        }
+        doc.text(record.month, 14, y)
+        doc.text(doc.splitTextToSize(record.employeeName, 62)[0] ?? '', 45, y)
+        doc.text(doc.splitTextToSize(record.employeeEmail, 72)[0] ?? '', 112, y)
+        doc.text(currency.format(record.grossSalary), 190, y)
+        doc.text(currency.format(record.tax), 225, y)
+        doc.text(currency.format(record.net), 255, y)
+        doc.text(record.status, 278, y)
+        y += 6
+      }
+      doc.save('payroll-register-report.pdf')
+      logAudit('PAYROLL REPORT', `Exported a payroll report with ${records.length} records`)
+      onNotify('Payroll report PDF exported successfully.')
+    } catch (generationError) {
+      console.error('Could not export payroll report:', generationError)
+      onNotify('Could not export the payroll report. Please try again.', 'error')
     }
   }
 
@@ -168,8 +277,24 @@ export default function Payroll({ token, employeeSelfService, onNotify, onUnauth
             <input type="month" value={month} onInput={(event) => setMonth(event.currentTarget.value)} required />
           </label>
           <button className="primary-button" type="submit" disabled={isSubmitting}>Generate monthly payroll</button>
+          <button className="secondary-button" type="button" disabled={!records.length} onClick={exportPayrollReport}>Export payroll report PDF</button>
           <p>Creates a pay snapshot for employees who don’t already have a run for this month.</p>
         </form>
+      )}
+      {employeeSelfService && (
+        <section className="tax-summary-panel">
+          <div>
+            <strong>Annual tax summary</strong>
+            <p>Download a summary of recorded gross pay and withholding for your financial year. This is not an official Form 16.</p>
+          </div>
+          <label>
+            <span>Financial year</span>
+            <select value={taxYear} onChange={(event) => setTaxYear(event.currentTarget.value)}>
+              {availableTaxYears.map((year) => <option key={year} value={year}>{year}</option>)}
+            </select>
+          </label>
+          <button className="secondary-button" type="button" onClick={downloadAnnualTaxSummary} disabled={!records.length}>Download tax summary</button>
+        </section>
       )}
       {error && <div className="notice-error" role="alert"><span>{error}</span><button onClick={() => void loadPayroll()}>Try again</button></div>}
       {loading ? (
