@@ -75,7 +75,7 @@ const reviewRequest = (status) => async (req, res) => {
   try {
     const request = await LeaveRequest.findById(req.params.id);
     if (!request) return res.status(404).json({ message: 'Leave request not found' });
-    if (request.status !== 'pending') {
+    if (request.status?.toLowerCase() !== 'pending') {
       return res.status(409).json({ message: 'This leave request has already been reviewed' });
     }
 
