@@ -17,7 +17,6 @@ import PeopleOperations from '../components/PeopleOperations'
 import DepartmentManagement from '../components/DepartmentManagement'
 import WorkforceAnalytics from '../components/WorkforceAnalytics'
 import DocumentManagement from '../components/DocumentManagement'
-import LeaveApproval from '../components/LeaveApproval'
 import SalaryStructure from '../components/SalaryStructure'
 import { logAudit } from '../utils/audit'
 import { apiUrl } from '../services/api'
@@ -265,18 +264,13 @@ function Overview({
   employees,
   departments,
   onNavigate,
-  onNotify,
 }: {
   role: Role
   employee?: Employee
   employees: Employee[]
   departments: Array<{ name: string; count: number }>
   onNavigate: (section: Section) => void
-  onNotify: (message: string, tone?: Feedback['tone']) => void
 }) {
-  const [leaveFormOpen, setLeaveFormOpen] = useState(false)
-  const [leaveDates, setLeaveDates] = useState({ from: '', to: '' })
-  const [leaveReason, setLeaveReason] = useState('')
   const totalPayroll = employees.reduce((sum, person) => sum + Number(person.salary || 0), 0)
   const thisYear = new Date().getFullYear()
   const recentHires = employees.filter((person) => person.joiningDate && new Date(person.joiningDate).getFullYear() === thisYear).length
@@ -316,29 +310,9 @@ function Overview({
             <div className="panel-heading"><div><span className="eyebrow">QUICK ACCESS</span><h2>Your work essentials</h2></div></div>
             <div className="quick-actions">
               <button className="quick-action" onClick={() => onNavigate('payroll')}><span className="quick-icon blue-icon">▤</span><span><strong>View payslips</strong><small>Review pay details and download monthly payslips</small></span><b>→</b></button>
-              <button className="quick-action" onClick={() => setLeaveFormOpen((open) => !open)}><span className="quick-icon purple-icon">▧</span><span><strong>Request leave</strong><small>Submit dates and a reason for review</small></span><b>→</b></button>
+              <button className="quick-action" onClick={() => onNavigate('leave')}><span className="quick-icon purple-icon">▧</span><span><strong>Apply leave</strong><small>Submit dates and a reason for review</small></span><b>→</b></button>
               <button className="quick-action" onClick={() => onNavigate('attendance')}><span className="quick-icon green-icon">◷</span><span><strong>Attendance</strong><small>Open your attendance workspace</small></span><b>→</b></button>
             </div>
-            {leaveFormOpen && (
-              <form className="leave-request-form" onSubmit={(event) => {
-                event.preventDefault()
-                if (!leaveDates.from || !leaveDates.to || leaveDates.to < leaveDates.from || !leaveReason.trim()) {
-                  onNotify('Enter valid leave dates and a reason before submitting.', 'error')
-                  return
-                }
-                setLeaveDates({ from: '', to: '' })
-                setLeaveReason('')
-                setLeaveFormOpen(false)
-                onNotify('Submitted: your leave request has been sent for review.')
-              }}>
-                <div className="leave-request-fields">
-                  <label>From date<input type="date" required value={leaveDates.from} onInput={(event) => setLeaveDates((dates) => ({ ...dates, from: event.currentTarget.value }))} /></label>
-                  <label>To date<input type="date" required min={leaveDates.from || undefined} value={leaveDates.to} onInput={(event) => setLeaveDates((dates) => ({ ...dates, to: event.currentTarget.value }))} /></label>
-                </div>
-                <label>Reason<textarea required maxLength={500} rows={3} value={leaveReason} onInput={(event) => setLeaveReason(event.currentTarget.value)} placeholder="Briefly describe your request" /></label>
-                <div className="leave-form-actions"><button className="primary-button" type="submit">Submit request</button><button className="secondary-button" type="button" onClick={() => setLeaveFormOpen(false)}>Cancel</button></div>
-              </form>
-            )}
           </section>
           <section className="panel profile-summary">
             <div className="panel-heading"><div><span className="eyebrow">YOUR PROFILE</span><h2>At a glance</h2></div><button className="subtle-link" onClick={() => onNavigate('profile')}>View profile</button></div>
@@ -417,7 +391,6 @@ function Overview({
         </section>
       )}
       {isAdmin && <section className="panel chart-panel"><div className="panel-heading"><div><span className="eyebrow">COMPENSATION</span><h2>Salary distribution</h2></div><button className="subtle-link" onClick={() => onNavigate('payroll')}>Open payroll</button></div><SalaryChart employees={employees} /></section>}
-      {isAdmin && <LeaveApproval />}
     </>
   )
 }
@@ -696,7 +669,7 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
 
   const renderSection = () => {
     if (activeSection === 'overview') {
-      return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={role === 'Employee' && employee ? [{ name: employee.department, count: 1 }] : departments} onNavigate={navigateTo} onNotify={notify} />
+      return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={role === 'Employee' && employee ? [{ name: employee.department, count: 1 }] : departments} onNavigate={navigateTo} />
     }
     if (activeSection === 'salary' && role === 'HR') return <SalaryStructure
       employees={employees}
@@ -722,7 +695,7 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
         </section>
       ) : <section className="panel empty-state"><h2>Profile not available</h2><p>Your HR team can help link your account to your employee record.</p></section>
     }
-    if (activeSection === 'payroll') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">{role === 'Employee' ? 'CONFIDENTIAL · PERSONAL' : 'COMPENSATION OPERATIONS'}</span><h2>{role === 'Employee' ? 'Your pay details' : 'Payroll register'}</h2></div></div><Payroll token={session.token} employeeSelfService={role === 'Employee'} employee={role === 'Employee' ? employee : undefined} onNotify={notify} onUnauthorized={onLogout} /></section>
+    if (activeSection === 'payroll') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">{role === 'Employee' ? 'CONFIDENTIAL · PERSONAL' : 'COMPENSATION OPERATIONS'}</span><h2>{role === 'Employee' ? 'Your pay details' : 'Payroll register'}</h2></div></div><Payroll token={session.token} employeeSelfService={role === 'Employee'} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'attendance') return <section className="panel module-panel"><Attendance employees={role === 'Employee' ? ownEmployees : employees} token={session.token} employeeSelfService={role === 'Employee'} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'leave') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">{role === 'Employee' ? 'TIME OFF' : 'EMPLOYEE REQUESTS'}</span><h2>{role === 'Employee' ? 'My leave requests' : role === 'HR' ? 'Review requests' : 'Leave management'}</h2></div></div><Leave token={session.token} employeeSelfService={role === 'Employee'} onNotify={notify} onUnauthorized={onLogout} /></section>
     if (activeSection === 'performance') return <section className="panel module-panel"><div className="panel-heading"><div><span className="eyebrow">GROWTH & DEVELOPMENT</span><h2>{role === 'Employee' ? 'My performance reviews' : 'Performance reviews'}</h2></div></div><Performance employees={role === 'Employee' ? ownEmployees : employees} token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} /></section>
@@ -737,7 +710,7 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
     if (activeSection === 'notifications') return <Notifications token={session.token} email={session.email} role={role} onUnauthorized={onLogout} />
     if (activeSection === 'peopleOps') return <PeopleOperations employees={role === 'Employee' ? ownEmployees : employees} token={session.token} role={role} onNotify={notify} onUnauthorized={onLogout} />
     if (activeSection === 'import' && role === 'HR') return <BulkEmployeeImport token={session.token} onImported={() => void fetchEmployees()} onNotify={notify} onUnauthorized={onLogout} />
-    return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={departments} onNavigate={navigateTo} onNotify={notify} />
+    return <Overview role={role} employee={employee} employees={role === 'Employee' ? ownEmployees : employees} departments={departments} onNavigate={navigateTo} />
   }
 
   const sectionTitle = activeSection === 'overview' ? roleConfig.title : titleForSection[activeSection]

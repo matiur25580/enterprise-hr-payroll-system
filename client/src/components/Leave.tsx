@@ -6,9 +6,11 @@ type LeaveRequest = {
   _id: string
   employeeName: string
   employeeEmail: string
-  date: string
+  type: 'sick' | 'casual' | 'annual'
+  from: string
+  to: string
   reason: string
-  status: 'Pending' | 'Approved' | 'Rejected'
+  status: 'pending' | 'approved' | 'rejected'
 }
 
 type LeaveProps = {
@@ -18,9 +20,13 @@ type LeaveProps = {
   onUnauthorized: () => void
 }
 
+type LeaveForm = Pick<LeaveRequest, 'type' | 'from' | 'to' | 'reason'>
+
+const today = () => new Date().toISOString().slice(0, 10)
+
 export default function Leave({ token, employeeSelfService, onNotify, onUnauthorized }: LeaveProps) {
   const [leaves, setLeaves] = useState<LeaveRequest[]>([])
-  const [form, setForm] = useState({ date: '', reason: '' })
+  const [form, setForm] = useState<LeaveForm>({ type: 'annual', from: '', to: '', reason: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -59,7 +65,7 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
         { headers: { Authorization: `Bearer ${token}` } },
       )
       setLeaves((current) => [response.data, ...current])
-      setForm({ date: '', reason: '' })
+      setForm({ type: 'annual', from: '', to: '', reason: '' })
       onNotify('Leave request submitted successfully.')
     } catch (requestError) {
       if (axios.isAxiosError<{ message?: string }>(requestError)) {
@@ -76,26 +82,26 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
     }
   }
 
-  const reviewLeave = async (request: LeaveRequest, status: 'Approved' | 'Rejected') => {
+  const reviewLeave = async (request: LeaveRequest, decision: 'approve' | 'reject') => {
     setError('')
     setReviewingId(request._id)
     try {
-      const response = await axios.patch<LeaveRequest>(
-        `${apiUrl}/api/leaves/${request._id}`,
-        { status },
+      const response = await axios.put<LeaveRequest>(
+        `${apiUrl}/api/leaves/${request._id}/${decision}`,
+        {},
         { headers: { Authorization: `Bearer ${token}` } },
       )
       setLeaves((current) => current.map((leave) => leave._id === request._id ? response.data : leave))
-      onNotify(`Leave request ${status.toLowerCase()} successfully.`)
+      onNotify(`Leave request ${decision === 'approve' ? 'approved' : 'rejected'} successfully.`)
     } catch (requestError) {
       if (axios.isAxiosError<{ message?: string }>(requestError)) {
         if (requestError.response?.status === 401) {
           onUnauthorized()
           return
         }
-        setError(requestError.response?.data?.message ?? `Could not ${status.toLowerCase()} the leave request.`)
+        setError(requestError.response?.data?.message ?? `Could not ${decision} the leave request.`)
       } else {
-        setError(`Could not ${status.toLowerCase()} the leave request. Please try again.`)
+        setError(`Could not ${decision} the leave request. Please try again.`)
       }
     } finally {
       setReviewingId('')
@@ -104,16 +110,37 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
 
   return (
     <div className="leave-workspace">
-      <h2>{employeeSelfService ? 'Request time off' : 'Review leave requests'}</h2>
+      <h2>{employeeSelfService ? 'Apply leave' : 'Leave requests'}</h2>
       {employeeSelfService && (
         <form className="leave-form" onSubmit={applyLeave}>
           <label>
-            <span>Leave date</span>
+            <span>Leave type</span>
+            <select
+              value={form.type}
+              onChange={(event) => setForm({ ...form, type: event.currentTarget.value as LeaveForm['type'] })}
+            >
+              <option value="sick">Sick</option>
+              <option value="casual">Casual</option>
+              <option value="annual">Annual</option>
+            </select>
+          </label>
+          <label>
+            <span>From</span>
             <input
               type="date"
-              min={new Date().toISOString().slice(0, 10)}
-              value={form.date}
-              onInput={(event) => setForm({ ...form, date: event.currentTarget.value })}
+              min={today()}
+              value={form.from}
+              onInput={(event) => setForm({ ...form, from: event.currentTarget.value, to: form.to < event.currentTarget.value ? '' : form.to })}
+              required
+            />
+          </label>
+          <label>
+            <span>To</span>
+            <input
+              type="date"
+              min={form.from || today()}
+              value={form.to}
+              onInput={(event) => setForm({ ...form, to: event.currentTarget.value })}
               required
             />
           </label>
@@ -129,7 +156,7 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
             />
           </label>
           <button className="primary-button" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Submitting…' : 'Submit request'}
+            {isSubmitting ? 'Submitting…' : 'Apply leave'}
           </button>
         </form>
       )}
@@ -139,7 +166,9 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
           <thead>
             <tr>
               {!employeeSelfService && <th>Employee</th>}
-              <th>Leave date</th>
+              <th>Type</th>
+              <th>From</th>
+              <th>To</th>
               <th>Reason</th>
               <th>Status</th>
               {!employeeSelfService && <th>Review</th>}
@@ -149,22 +178,24 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
             {leaves.map((leave) => (
               <tr key={leave._id}>
                 {!employeeSelfService && <td>{leave.employeeName}<small className="leave-email">{leave.employeeEmail}</small></td>}
-                <td>{new Date(leave.date).toLocaleDateString()}</td>
+                <td className="capitalize">{leave.type}</td>
+                <td>{new Date(leave.from).toLocaleDateString()}</td>
+                <td>{new Date(leave.to).toLocaleDateString()}</td>
                 <td>{leave.reason}</td>
-                <td><span className={`leave-status status-${leave.status.toLowerCase()}`}>{leave.status}</span></td>
+                <td><span className={`leave-status status-${leave.status}`}>{leave.status}</span></td>
                 {!employeeSelfService && (
                   <td className="leave-actions">
-                    {leave.status === 'Pending' ? (
+                    {leave.status === 'pending' ? (
                       <>
-                        <button className="table-action" disabled={reviewingId === leave._id} onClick={() => void reviewLeave(leave, 'Approved')}>Approve</button>
-                        <button className="table-action danger-action" disabled={reviewingId === leave._id} onClick={() => void reviewLeave(leave, 'Rejected')}>Reject</button>
+                        <button className="table-action" disabled={reviewingId === leave._id} onClick={() => void reviewLeave(leave, 'approve')}>Approve</button>
+                        <button className="table-action danger-action" disabled={reviewingId === leave._id} onClick={() => void reviewLeave(leave, 'reject')}>Reject</button>
                       </>
                     ) : 'Reviewed'}
                   </td>
                 )}
               </tr>
             ))}
-            {!leaves.length && <tr><td colSpan={employeeSelfService ? 3 : 5} className="table-empty">No leave requests yet.</td></tr>}
+            {!leaves.length && <tr><td colSpan={employeeSelfService ? 6 : 7} className="table-empty">No leave requests yet.</td></tr>}
           </tbody>
         </table>
       </div>}

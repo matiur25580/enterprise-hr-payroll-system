@@ -7,7 +7,13 @@ const recordWorkplaceActivity = require('../utils/activity');
 const recordAudit = require('../utils/audit');
 
 const router = express.Router();
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const leaveTypes = ['sick', 'casual', 'annual'];
+
+const parseDate = (value) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? date : null;
+};
 
 router.get('/', verifyToken, authorize('admin', 'hr', 'employee'), async (req, res) => {
   try {
@@ -15,61 +21,61 @@ router.get('/', verifyToken, authorize('admin', 'hr', 'employee'), async (req, r
       ? { employeeEmail: String(req.user.email).toLowerCase() }
       : {};
     const requests = await LeaveRequest.find(query).sort({ createdAt: -1 }).lean();
-    res.json(requests);
+    return res.json(requests);
   } catch (error) {
     console.error('Could not load leave requests:', error);
-    res.status(500).json({ message: 'Could not load leave requests' });
+    return res.status(500).json({ message: 'Could not load leave requests' });
   }
 });
 
 router.post('/', verifyToken, authorize('employee'), async (req, res) => {
+  const from = parseDate(req.body.from);
+  const to = parseDate(req.body.to);
+  const type = typeof req.body.type === 'string' ? req.body.type.toLowerCase() : '';
+  const reason = typeof req.body.reason === 'string' ? req.body.reason.trim() : '';
+  const today = new Date().toISOString().slice(0, 10);
+  if (!leaveTypes.includes(type) || !from || !to || req.body.from < today
+    || from > to || reason.length < 10 || reason.length > 500) {
+    return res.status(400).json({ message: 'Provide a valid leave type, future date range, and reason (10-500 characters).' });
+  }
+
   try {
-    const { date, reason } = req.body;
-    const parsedDate = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
-      ? new Date(`${date}T00:00:00.000Z`)
-      : new Date(NaN);
-    if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date
-      || parsedDate < new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`)
-      || typeof reason !== 'string' || reason.trim().length < 10 || reason.trim().length > 500) {
-      return res.status(400).json({ message: 'Provide a valid leave date and reason' });
-    }
-
-    const employee = await Employee.findOne({
-      email: { $regex: `^${escapeRegExp(String(req.user.email).toLowerCase())}$`, $options: 'i' }
-    });
+    const employee = await Employee.findOne({ email: String(req.user.email).toLowerCase() });
     if (!employee) return res.status(404).json({ message: 'Employee profile is not linked to this account' });
-
     const request = await LeaveRequest.create({
-      employee: employee._id,
+      employeeId: employee._id,
       employeeEmail: employee.email,
       employeeName: employee.name,
-      date: parsedDate,
-      reason: reason.trim()
+      type,
+      from,
+      to,
+      reason,
     });
     await recordWorkplaceActivity(
       req,
       employee.email,
       'leave-requested',
-      `${employee.name} submitted a leave request for ${parsedDate.toLocaleDateString()}.`
+      `${employee.name} submitted a ${type} leave request from ${req.body.from} to ${req.body.to}.`,
     );
     await recordAudit(req, 'created', 'leave-request', request._id, `Submitted a leave request for ${request.employeeName}.`);
-    res.status(201).json(request);
+    return res.status(201).json(request);
   } catch (error) {
+    if (error.name === 'ValidationError' || error.name === 'CastError') {
+      return res.status(400).json({ message: 'Leave request data is invalid.' });
+    }
     console.error('Could not submit leave request:', error);
-    res.status(500).json({ message: 'Could not submit leave request' });
+    return res.status(500).json({ message: 'Could not submit leave request' });
   }
 });
 
-router.patch('/:id', verifyToken, authorize('admin', 'hr'), async (req, res) => {
-  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid leave request ID.' });
+const reviewRequest = (status) => async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ message: 'Invalid leave request ID.' });
+  }
   try {
-    const { status } = req.body;
-    if (status !== 'Approved' && status !== 'Rejected') {
-      return res.status(400).json({ message: 'Leave status must be Approved or Rejected' });
-    }
     const request = await LeaveRequest.findById(req.params.id);
     if (!request) return res.status(404).json({ message: 'Leave request not found' });
-    if (request.status !== 'Pending') {
+    if (request.status !== 'pending') {
       return res.status(409).json({ message: 'This leave request has already been reviewed' });
     }
 
@@ -81,14 +87,17 @@ router.patch('/:id', verifyToken, authorize('admin', 'hr'), async (req, res) => 
       req,
       request.employeeEmail,
       'leave-reviewed',
-      `${request.employeeName}'s leave request for ${request.date.toLocaleDateString()} was ${status.toLowerCase()}.`
+      `${request.employeeName}'s leave request from ${request.from.toISOString().slice(0, 10)} to ${request.to.toISOString().slice(0, 10)} was ${status}.`,
     );
-    await recordAudit(req, 'reviewed', 'leave-request', request._id, `Marked ${request.employeeName}'s leave request ${status.toLowerCase()}.`);
-    res.json(request);
+    await recordAudit(req, 'reviewed', 'leave-request', request._id, `Marked ${request.employeeName}'s leave request ${status}.`);
+    return res.json(request);
   } catch (error) {
     console.error('Could not review leave request:', error);
-    res.status(500).json({ message: 'Could not review leave request' });
+    return res.status(500).json({ message: 'Could not review leave request' });
   }
-});
+};
+
+router.put('/:id/approve', verifyToken, authorize('admin', 'hr'), reviewRequest('approved'));
+router.put('/:id/reject', verifyToken, authorize('admin', 'hr'), reviewRequest('rejected'));
 
 module.exports = router;

@@ -19,13 +19,14 @@ The project includes a TypeScript/Preact single-page client, a Node.js/Express J
 - Role-based Admin, HR and Employee workspaces, with role-specific routes at `/admin`, `/hr` and `/employee`.
 - Tab-scoped authentication that survives refreshes and is cleared on sign-out or when the browser tab closes.
 - Employee payslip PDF downloads and payroll reports.
-- Leave management with employee requests, an Admin approval-table preview and HR review tools.
+- Persistent leave requests with employee self-service and HR/Admin approval tools.
+- Monthly attendance registers with employee check-in/out and a personal attendance calendar.
 - HR salary breakdown previews with editable Basic, HRA, DA, PF and Tax components.
 
 ### Admin dashboard
 
 - Workforce overview with headcount, department mix, current monthly payroll cost and recent joiners.
-- Leave approval table with mock employee requests and interactive Approve/Reject statuses.
+- Company-wide leave requests with Approve/Reject actions.
 - Workforce analytics with department headcount/payroll and a 12-month trend of audited employee-record removals.
 - Department creation and deletion, with deletion blocked while employees remain assigned.
 - Employee directory and role-protected employee administration.
@@ -49,7 +50,7 @@ The exit trend is based on employee records removed from the directory. It is no
 ### Employee dashboard
 
 - Personal profile, payslip history and PDF payslip downloads.
-- A quick leave-request form with date range and reason, plus submission feedback.
+- Leave application by type and date range, with a personal request history and status.
 - Downloadable annual payroll/tax summary based on recorded payroll.
 - Attendance check-in/out and monthly attendance calendar.
 - Team directory, announcements, notifications and helpdesk tickets.
@@ -57,6 +58,14 @@ The exit trend is based on employee records removed from the directory. It is no
 - Access to company-wide documents and documents assigned to the employee's signed-in email.
 
 The annual payroll/tax summary is informational. It is **not** a statutory Form 16; official tax certificates must be issued and verified through the employer's compliant payroll process.
+
+## Enterprise API workflows
+
+Protected endpoints require `Authorization: Bearer <token>`.
+
+- **Leave:** `POST /api/leaves` accepts `{ "type": "annual", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "reason": "..." }`; `GET /api/leaves` returns the signed-in employee's own requests or all requests for HR/Admin; HR/Admin review with `PUT /api/leaves/:id/approve` or `PUT /api/leaves/:id/reject`.
+- **Attendance:** Employees use `POST /api/attendance/checkin` and `POST /api/attendance/checkout`. `GET /api/attendance?month=YYYY-MM` returns the monthly register to HR/Admin and only the signed-in employee's records to an employee account. Omitting `month` returns today's records.
+- **Payslips:** `GET /api/payroll/:employeeId/payslip?month=YYYY-MM` returns a PDF for an existing payroll record. Employees can download only their own; HR/Admin can download employee payslips.
 
 ## Technology stack
 
@@ -72,7 +81,7 @@ The client uses Preact rather than React; it is React-compatible and runs with V
 Additional project tooling and capabilities:
 
 - **Email:** Nodemailer with environment-configured SMTP for email verification and password-reset OTP delivery.
-- **Documents and exports:** Protected PDF download endpoints, jsPDF reports/payslips and CSV exports that open in spreadsheet tools.
+- **Documents and exports:** Protected PDF download endpoints, server-generated PDFKit payslips, jsPDF reports and CSV exports that open in spreadsheet tools.
 - **Deployment:** No production hosting configuration is included. Configure HTTPS, environment secrets, MongoDB access controls, backups, monitoring and an approved deployment platform before launch.
 
 ## Screenshots

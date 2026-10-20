@@ -8,6 +8,7 @@ const payrollSchema = new mongoose.Schema({
   grossSalary: { type: Number, required: true, min: 0 },
   basic: { type: Number, required: true, min: 0 },
   hra: { type: Number, required: true, min: 0 },
+  da: { type: Number, default: 0, min: 0 },
   pf: { type: Number, required: true, min: 0 },
   tax: { type: Number, required: true, min: 0 },
   bonus: { type: Number, default: 0 },

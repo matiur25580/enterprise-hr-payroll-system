@@ -51,9 +51,10 @@ export default function Attendance({
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const loadAttendance = async () => {
+  const loadAttendance = async (month: string) => {
     try {
       const response = await axios.get<AttendanceRecord[]>(`${apiUrl}/api/attendance`, {
+        params: employeeSelfService ? undefined : { month },
         headers: { Authorization: `Bearer ${token}` },
       })
       setRecords(response.data)
@@ -63,7 +64,7 @@ export default function Attendance({
         onUnauthorized()
         return
       }
-      setError('Could not load today’s attendance. Please try again.')
+      setError('Could not load attendance. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -94,7 +95,7 @@ export default function Attendance({
   }
 
   useEffect(() => {
-    void loadAttendance()
+    void loadAttendance(calendarMonth)
     if (employeeSelfService && employees.length) void loadCalendar(calendarMonth)
   }, [token, employeeSelfService, employees.length, calendarMonth])
 
@@ -121,7 +122,7 @@ export default function Attendance({
         { headers: { Authorization: `Bearer ${token}` } },
       )
       setRecords((current) => [
-        ...current.filter((record) => record.employee.email.toLowerCase() !== employee.email.toLowerCase()),
+        ...current.filter((record) => record._id !== response.data._id),
         { ...response.data, employee },
       ])
       onNotify(`Attendance marked ${status} for ${employee.name}.`)
@@ -141,23 +142,12 @@ export default function Attendance({
   }
 
   const recordTime = async (action: 'checkin' | 'checkout') => {
-    const time = new Date().toISOString()
-    const checkIn = action === 'checkin' ? time : employeeRecord?.checkIn
-    if (!checkIn) {
-      setError('Check in before checking out.')
-      return
-    }
-
     setIsSubmitting(true)
     setError('')
     try {
       const response = await axios.post<AttendanceRecord>(
-        `${apiUrl}/api/attendance`,
-        {
-          date: time.slice(0, 10),
-          checkIn,
-          checkOut: action === 'checkout' ? time : null,
-        },
+        `${apiUrl}/api/attendance/${action}`,
+        {},
         { headers: { Authorization: `Bearer ${token}` } },
       )
       const employee = employees[0]
@@ -185,7 +175,7 @@ export default function Attendance({
     <div className="attendance-workspace">
       <div className="attendance-summary">
         <div><span className="eyebrow">TODAY’S ATTENDANCE</span><h2>{employeeSelfService ? 'Your workday' : 'Attendance review'}</h2></div>
-        {!employeeSelfService && <span className="attendance-count">{presentCount}<small> / {employees.length} present</small></span>}
+        {!employeeSelfService && <span className="attendance-count">{presentCount}<small> present this month</small></span>}
       </div>
       {employeeSelfService && employees[0] && (
         <section className="checkin-card">
@@ -238,27 +228,36 @@ export default function Attendance({
         </section>
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
+      {!employeeSelfService && (
+        <div className="attendance-month-filter">
+          <label htmlFor="attendance-month">Attendance month</label>
+          <input id="attendance-month" type="month" value={calendarMonth} onInput={(event) => setCalendarMonth(event.currentTarget.value)} />
+        </div>
+      )}
       {!employeeSelfService && (loading ? <div className="loading-state" role="status"><span className="loading-indicator" />Loading attendance…</div> : (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Employee</th><th>Status</th><th>Check in</th><th>Check out</th><th>Update</th></tr></thead>
+            <thead><tr><th>Employee</th><th>Date</th><th>Status</th><th>Check in</th><th>Check out</th><th>Update</th></tr></thead>
             <tbody>
-              {employees.map((employee) => {
-                const record = attendanceByEmail.get(employee.email.toLowerCase())
+              {records.map((record) => {
+                const employee = record.employee
                 return (
-                  <tr key={employee._id}>
+                  <tr key={record._id}>
                     <td>{employee.name}<small className="leave-email">{employee.department || 'Unassigned'} · {employee.email}</small></td>
-                    <td><span className={`attendance-status attendance-${record?.status ?? 'unrecorded'}`}>{record?.status ?? 'Not recorded'}</span></td>
-                    <td>{formatTime(record?.checkIn)}</td>
-                    <td>{formatTime(record?.checkOut)}</td>
+                    <td>{new Date(`${record.date}T00:00:00`).toLocaleDateString()}</td>
+                    <td><span className={`attendance-status attendance-${record.status}`}>{record.status}</span></td>
+                    <td>{formatTime(record.checkIn)}</td>
+                    <td>{formatTime(record.checkOut)}</td>
                     <td className="leave-actions">
-                      <button className="table-action" disabled={isSubmitting} onClick={() => void updateAttendance(employee, 'present')}>Present</button>
-                      <button className="table-action danger-action" disabled={isSubmitting} onClick={() => void updateAttendance(employee, 'absent')}>Absent</button>
+                      {record.date === new Date().toISOString().slice(0, 10) ? <>
+                        <button className="table-action" disabled={isSubmitting} onClick={() => void updateAttendance(employee, 'present')}>Present</button>
+                        <button className="table-action danger-action" disabled={isSubmitting} onClick={() => void updateAttendance(employee, 'absent')}>Absent</button>
+                      </> : '—'}
                     </td>
                   </tr>
                 )
               })}
-              {!employees.length && <tr><td colSpan={5} className="table-empty">No employee records are available.</td></tr>}
+              {!records.length && <tr><td colSpan={6} className="table-empty">No attendance records for this month.</td></tr>}
             </tbody>
           </table>
         </div>

@@ -42,7 +42,16 @@ router.get('/calendar', verifyToken, authorize('admin', 'hr', 'employee'), async
 
 router.get('/', verifyToken, authorize('admin', 'hr', 'employee'), async (req, res) => {
   try {
-    const query = { date: todayKey() };
+    let dateFilter = { $eq: todayKey() };
+    if (req.query.month !== undefined) {
+      if (typeof req.query.month !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(req.query.month)) {
+        return res.status(400).json({ message: 'Select a valid attendance month.' });
+      }
+      const [year, month] = req.query.month.split('-').map(Number);
+      const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      dateFilter = { $gte: `${req.query.month}-01`, $lte: `${req.query.month}-${String(lastDay).padStart(2, '0')}` };
+    }
+    const query = { date: dateFilter };
     if (req.user.role === 'employee') {
       const employee = await findSignedInEmployee(req.user.email);
       if (!employee) return res.status(404).json({ message: 'Employee profile is not linked to this account' });
@@ -50,7 +59,7 @@ router.get('/', verifyToken, authorize('admin', 'hr', 'employee'), async (req, r
     }
     const records = await Attendance.find(query)
       .populate('employee', 'name email department designation')
-      .sort({ updatedAt: -1 })
+      .sort({ date: -1, updatedAt: -1 })
       .lean();
     res.json(records);
   } catch (error) {
@@ -180,7 +189,7 @@ router.put('/:employeeId', verifyToken, authorize('admin', 'hr'), async (req, re
     const record = await Attendance.findOneAndUpdate(
       { employee: employee._id, date: todayKey() },
       {
-        $set: { status },
+        $set: { status, employeeId: employee._id },
         $setOnInsert: { employee: employee._id, date: todayKey() }
       },
       { new: true, upsert: true, runValidators: true }

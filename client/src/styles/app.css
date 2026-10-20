@@ -1182,7 +1182,7 @@ body { min-height: 100vh; min-height: 100dvh; }
 .leave-form { display: flex; align-items: end; gap: 10px; margin: 0 0 14px; }
 .leave-form label { display: grid; flex: 0 0 165px; gap: 5px; color: #758096; font-size: 9px; font-weight: 700; }
 .leave-form .leave-reason-field { flex: 1; }
-.leave-form input { width: 100%; min-height: 37px; padding: 0 10px; border: 1px solid #e1e6ef; border-radius: 7px; color: #34405a; background: #fff; font-size: 10px; }
+.leave-form input, .leave-form select { width: 100%; min-height: 37px; padding: 0 10px; border: 1px solid #e1e6ef; border-radius: 7px; color: #34405a; background: #fff; font-size: 10px; }
 .leave-form textarea { width: 100%; min-height: 42px; padding: 8px 10px; border: 1px solid #e1e6ef; border-radius: 7px; color: #34405a; background: #fff; font: inherit; resize: vertical; }
 .leave-email { display: block; margin-top: 3px; color: #929cad; font-size: 9px; }
 .leave-status { display: inline-block; padding: 4px 8px; border-radius: 20px; color: #80602b; background: #fff4de; font-size: 9px; font-weight: 700; }
@@ -1201,8 +1201,10 @@ body { min-height: 100vh; min-height: 100dvh; }
 .workspace.theme-dark .leave-workspace > h2 { color: #e6edf8; }
 .workspace.theme-dark .leave-workspace .form-error { color: #ffb8b5; }
 .workspace.theme-dark .leave-form label, .workspace.theme-dark .leave-email { color: #98a8bd; }
-.workspace.theme-dark .leave-form input { border-color: #35445d; color: #e1e9f5; background: #0d1727; }
+.workspace.theme-dark .leave-form input, .workspace.theme-dark .leave-form select { border-color: #35445d; color: #e1e9f5; background: #0d1727; }
 .workspace.theme-dark .leave-form textarea { border-color: #35445d; color: #e1e9f5; background: #0d1727; }
+.workspace.theme-dark .attendance-month-filter { color: #98a8bd; }
+.workspace.theme-dark .attendance-month-filter input { border-color: #35445d; color: #e1e9f5; background: #0d1727; }
 .workspace.theme-dark .leave-status { color: #ffca8d; background: #3a2c20; }
 .workspace.theme-dark .status-approved { color: #9be4c8; background: #142c2a; }
 .workspace.theme-dark .status-rejected { color: #ffb8b5; background: #301e27; }
@@ -1217,7 +1219,9 @@ body { min-height: 100vh; min-height: 100dvh; }
 .role-admin.theme-light .leave-workspace > h2 { color: #25314a; }
 .role-admin.theme-light .leave-workspace .form-error { color: #a33e3c; }
 .role-admin.theme-light .leave-form label, .role-admin.theme-light .leave-email { color: #758096; }
-.role-admin.theme-light .leave-form input { border-color: #e1e6ef; color: #34405a; background: #fff; }
+.role-admin.theme-light .leave-form input, .role-admin.theme-light .leave-form select { border-color: #e1e6ef; color: #34405a; background: #fff; }
+.role-admin.theme-light .attendance-month-filter { color: #758096; }
+.role-admin.theme-light .attendance-month-filter input { border-color: #e1e6ef; color: #34405a; background: #fff; }
 .role-admin.theme-light .leave-status { color: #80602b; background: #fff4de; }
 .role-admin.theme-light .status-approved { color: #176b52; background: #eaf8f1; }
 .role-admin.theme-light .status-rejected { color: #a33e3c; background: #fff0ef; }
@@ -1226,6 +1230,8 @@ body { min-height: 100vh; min-height: 100dvh; }
 .attendance-summary h2 { margin: 0; color: #25314a; font: 700 13px 'Segoe UI', system-ui, sans-serif; }
 .attendance-count { color: #138573; font-size: 19px; font-weight: 750; }
 .attendance-count small { color: #8994a7; font-size: 10px; font-weight: 600; }
+.attendance-month-filter { display: flex; align-items: center; gap: 10px; margin: 12px 0; color: #758096; font-size: 11px; font-weight: 700; }
+.attendance-month-filter input { min-height: 36px; padding: 0 9px; border: 1px solid #e1e6ef; border-radius: 7px; color: #34405a; background: #fff; }
 .attendance-status { display: inline-block; padding: 4px 8px; border-radius: 20px; color: #7b879b; background: #f0f2f6; font-size: 9px; font-weight: 700; text-transform: capitalize; white-space: nowrap; }
 .attendance-present, .attendance-late { color: #176b52; background: #eaf8f1; }
 .attendance-absent { color: #a33e3c; background: #fff0ef; }
