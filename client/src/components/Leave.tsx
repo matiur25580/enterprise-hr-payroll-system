@@ -25,7 +25,19 @@ type LeaveForm = Pick<LeaveRequest, 'type' | 'from' | 'to' | 'reason'>
 const today = () => new Date().toISOString().slice(0, 10)
 
 export default function Leave({ token, employeeSelfService, onNotify, onUnauthorized }: LeaveProps) {
-  const [leaves, setLeaves] = useState<LeaveRequest[]>([])
+  const handleLeaveApprove = async (id) => {
+  const tk = localStorage.getItem("token");
+  const base = import.meta.env.VITE_API_URL || "https://enterprise-hr-payroll-system.onrender.com";
+  await fetch(`${base}/api/leaves/${id}/approve`,{method:"POST",headers:{Authorization:`Bearer ${tk}`}});
+  window.location.reload();
+};
+const handleLeaveReject = async (id) => {
+  const tk = localStorage.getItem("token");
+  const base = import.meta.env.VITE_API_URL || "https://enterprise-hr-payroll-system.onrender.com";
+  await fetch(`${base}/api/leaves/${id}/reject`,{method:"POST",headers:{Authorization:`Bearer ${tk}`}});
+  window.location.reload();
+};
+const [leaves, setLeaves] = useState<LeaveRequest[]>([])
   const [form, setForm] = useState<LeaveForm>({ type: 'annual', from: '', to: '', reason: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
