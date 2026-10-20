@@ -80,7 +80,7 @@ The client uses Preact rather than React; it is React-compatible and runs with V
 
 Additional project tooling and capabilities:
 
-- **Email:** Nodemailer with environment-configured SMTP for account-registration and password-reset OTP delivery, plus employee welcome messages.
+- **Email:** Nodemailer with Gmail app-password authentication for account-registration and password-reset OTP delivery, plus employee welcome messages.
 - **Documents and exports:** Protected PDF download endpoints, server-generated PDFKit payslips, jsPDF reports and CSV exports that open in spreadsheet tools.
 - **Deployment:** No production hosting configuration is included. Configure HTTPS, environment secrets, MongoDB access controls, backups, monitoring and an approved deployment platform before launch.
 
@@ -106,7 +106,7 @@ The application does not include demo accounts or seed data. Visitors can regist
 
 - Node.js 20 or later and npm.
 - A MongoDB instance (local or hosted).
-- SMTP credentials for registration OTPs, password-reset OTPs, and employee welcome messages.
+- A Gmail account and app password for registration OTPs, password-reset OTPs, and employee welcome messages.
 
 ### 1. Clone the repository
 
@@ -124,7 +124,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Set `MONGO_URI` and `JWT_SECRET` in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters and a restricted MongoDB user. Configure the SMTP variables, including `EMAIL_USER` and `EMAIL_PASS`, in `server/.env` for registration OTP, password-reset OTP, and employee welcome email delivery. Never commit this file.
+Set `MONGO_URI` and `JWT_SECRET` in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters and a restricted MongoDB user. Configure `EMAIL_USER` and `EMAIL_PASS` with a Gmail account and app password in `server/.env` for registration OTP, password-reset OTP, and employee welcome email delivery. Never commit this file.
 
 ### 3. Configure and run the client
 
@@ -167,9 +167,6 @@ Names only; values belong in ignored local files or a managed secret store.
 - `MONGO_URI`
 - `JWT_SECRET`
 - `CLIENT_URL`
-- `EMAIL_HOST`
-- `EMAIL_PORT`
-- `EMAIL_SECURE`
 - `EMAIL_USER`
 - `EMAIL_PASS`
 - `EMAIL_FROM`

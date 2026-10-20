@@ -25,6 +25,8 @@ const authMiddleware = verifyToken;
 
 const app = express();
 
+console.log('EMAIL_USER exists:', !!process.env.EMAIL_USER, 'EMAIL_PASS exists:', !!process.env.EMAIL_PASS);
+
 app.disable('x-powered-by');
 app.use(cors({
   origin: process.env.CLIENT_URL || '*',
@@ -72,6 +74,12 @@ app.get('/api/admin-only', verifyToken, authorize('admin'), (req, res) => {
   res.json({ message: `Welcome admin ${req.user.id}` });
 });
 app.get('/api/health', getHealth);
+app.get('/api/debug/email', (req, res) => {
+  res.json({
+    emailUserExists: !!process.env.EMAIL_USER,
+    emailPassExists: !!process.env.EMAIL_PASS,
+  });
+});
 app.get('/', (req, res) => res.json({ ok: true }));
 app.use('/api', (req, res) => res.status(404).json({ message: 'API route not found' }));
 app.use((error, req, res, next) => {

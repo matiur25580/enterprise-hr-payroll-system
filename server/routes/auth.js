@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const EmailChallenge = require('../models/EmailChallenge');
 const sendOtpEmail = require('../utils/email');
+const isEmailConfigured = sendOtpEmail.isEmailConfigured;
 const createRateLimit = require('../middlewares/rateLimit');
 const { verifyToken } = require('../middlewares/auth');
 
@@ -110,11 +111,8 @@ async function saveChallenge({ email, purpose, pendingSignup, userId }) {
   try {
     await sendOtpEmail(email, code, purpose);
   } catch (error) {
-    console.error('Could not send verification email:', error);
     await EmailChallenge.deleteOne({ _id: challenge._id, codeHash });
-    const deliveryError = new Error('Email delivery failed');
-    deliveryError.status = 503;
-    throw deliveryError;
+    throw error;
   }
 }
 
@@ -135,7 +133,14 @@ async function consumeOtp(challenge, code) {
   return Boolean(attempt && await bcrypt.compare(code, attempt.codeHash));
 }
 
-router.post('/signup/request-otp', registrationRateLimit, async (req, res) => {
+router.post(['/send-otp', '/signup/request-otp'], registrationRateLimit, async (req, res) => {
+  if (!isEmailConfigured()) {
+    return res.status(500).json({
+      error: 'EMAIL_NOT_CONFIGURED',
+      message: 'Email delivery is unavailable. Check the EMAIL_USER and EMAIL_PASS configuration.',
+    });
+  }
+
   try {
     const name = typeof req.body.name === 'string' ? req.body.name.trim().replace(/\s+/g, ' ') : '';
     const email = normalizeEmail(req.body.email);
@@ -171,7 +176,15 @@ router.post('/signup/request-otp', registrationRateLimit, async (req, res) => {
     res.json({ message: 'Verification code sent to your email address.', expiresIn: OTP_LIFETIME_MS / 1000 });
   } catch (error) {
     if (error.status === 429) return res.status(429).json({ message: error.message });
-    if (error.status === 503) return res.status(503).json({ message: 'Email delivery is unavailable. Contact the system administrator.' });
+    if (error.code === 'EMAIL_NOT_CONFIGURED') {
+      return res.status(500).json({
+        error: 'EMAIL_NOT_CONFIGURED',
+        message: 'Email delivery is unavailable. Check the EMAIL_USER and EMAIL_PASS configuration.',
+      });
+    }
+    if (error.code === 'EMAIL_SEND_FAILED') {
+      return res.status(500).json({ error: 'EMAIL_SEND_FAILED', details: error.message });
+    }
     console.error('Could not start account registration:', error);
     res.status(500).json({ message: 'Could not start registration. Please try again.' });
   }
@@ -238,7 +251,15 @@ router.post('/password-reset/request-otp', otpRateLimit, async (req, res) => {
     res.json({ message: 'Verification code sent to your email address.', expiresIn: OTP_LIFETIME_MS / 1000 });
   } catch (error) {
     if (error.status === 429) return res.status(429).json({ message: error.message });
-    if (error.status === 503) return res.status(503).json({ message: 'Email delivery is unavailable. Contact the system administrator.' });
+    if (error.code === 'EMAIL_NOT_CONFIGURED') {
+      return res.status(500).json({
+        error: 'EMAIL_NOT_CONFIGURED',
+        message: 'Email delivery is unavailable. Check the EMAIL_USER and EMAIL_PASS configuration.',
+      });
+    }
+    if (error.code === 'EMAIL_SEND_FAILED') {
+      return res.status(500).json({ error: 'EMAIL_SEND_FAILED', details: error.message });
+    }
     console.error('Could not start password reset:', error);
     res.status(500).json({ message: 'Could not send a password reset code. Please try again.' });
   }

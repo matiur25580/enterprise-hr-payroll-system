@@ -42,8 +42,10 @@ const emptySignup: SignupForm = {
 }
 
 function requestError(error: unknown, fallback: string) {
-  if (axios.isAxiosError<{ message?: string }>(error)) {
-    return error.response?.data?.message ?? fallback
+  if (axios.isAxiosError<{ error?: string; message?: string; details?: string }>(error)) {
+    const response = error.response?.data
+    if (response?.error === 'EMAIL_NOT_CONFIGURED' && response.message) return response.message
+    return response?.message ?? response?.details ?? fallback
   }
   return fallback
 }
@@ -185,7 +187,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     if (!validateSignup()) return
     setIsSubmitting(true)
     try {
-      await axios.post(`${apiUrl}/api/auth/signup/request-otp`, {
+      await axios.post(`${apiUrl}/api/auth/send-otp`, {
         ...signup,
         name: signup.name.trim(),
         email: signup.email.trim(),
@@ -212,7 +214,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     setIsSubmitting(true)
     try {
       if (otpMode === 'signup') {
-        await axios.post(`${apiUrl}/api/auth/signup/request-otp`, {
+        await axios.post(`${apiUrl}/api/auth/send-otp`, {
           ...signup,
           name: signup.name.trim(),
           email: signup.email.trim(),
