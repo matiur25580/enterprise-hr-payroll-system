@@ -179,8 +179,8 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
               <tr key={leave._id}>
                 {!employeeSelfService && <td>{leave.employeeName}<small className="leave-email">{leave.employeeEmail}</small></td>}
                 <td className="capitalize">{leave.type}</td>
-                <td>{new Date(leave.from).toLocaleDateString()}</td>
-                <td>{new Date(leave.to).toLocaleDateString()}</td>
+                <td>{(leave.from||leave.fromDate||leave.startDate||'').toString().slice(0,10)}</td>
+                <td>{(leave.to||leave.toDate||leave.endDate||'').toString().slice(0,10)}</td>
                 <td>{leave.reason}</td>
                 <td><span className={`leave-status status-${leave.status}`}>{leave.status}</span></td>
                 {!employeeSelfService && (
