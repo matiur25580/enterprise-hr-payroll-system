@@ -197,7 +197,7 @@ const [leaves, setLeaves] = useState<LeaveRequest[]>([])
                 <td><span className={`leave-status status-${leave.status}`}>{leave.status}</span></td>
                 {!employeeSelfService && (
                   <td className="leave-actions">
-                    {leave.status === 'pending' ? (
+                    {leave.status?.toLowerCase() === 'pending' ? (
                       <>
                         <button className="table-action" disabled={reviewingId === leave._id} onClick={() => void reviewLeave(leave, 'approve')}>Approve</button>
                         <button className="table-action danger-action" disabled={reviewingId === leave._id} onClick={() => void reviewLeave(leave, 'reject')}>Reject</button>
