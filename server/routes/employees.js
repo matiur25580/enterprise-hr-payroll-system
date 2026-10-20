@@ -114,7 +114,7 @@ router.post('/', verifyToken, authorize('admin','hr'), async (req,res)=>{
   }
 });
 
-router.get('/', verifyToken, async (req,res)=>{
+router.get('/', verifyToken, async (req, res) => {
   try{
     if (req.user.role === 'employee' && !req.user.email)
       return res.status(401).json({message:'Please sign in again'});
@@ -123,8 +123,11 @@ router.get('/', verifyToken, async (req,res)=>{
         ? { email: { $regex: `^${escapeRegExp(String(req.user.email).toLowerCase())}$`, $options: 'i' } }
         : {}
     );
-    res.json(emps);
-  }catch(e){ console.error('Could not load employees:', e); res.status(500).json({message:'Could not load employees'}); }
+    return res.json(emps);
+  } catch (err) {
+    console.error('Could not load employees:', err);
+    return res.status(500).json({ message: err.message });
+  }
 });
 
 router.get('/:id', verifyToken, async (req,res)=>{
