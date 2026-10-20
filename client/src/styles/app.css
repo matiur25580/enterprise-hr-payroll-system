@@ -112,8 +112,9 @@ button { cursor: pointer; }
 .form-error { margin: 3px 0; color: #ffaaa7; font-size: 12px; }
 .login-success { margin-bottom: 16px; padding: 11px 14px; border: 1px solid #b9e3d2; border-radius: 9px; color: #176b52; background: #eaf8f1; font-size: 12px; font-weight: 600; }
 .auth-switch { margin: 18px 0 0; color: #a8b5c9; text-align: center; font-size: 12px; }
-.auth-switch button, .forgot-link { padding: 0; border: 0; color: #9eafff; background: transparent; font-size: 12px; font-weight: 700; }
-.auth-switch button:hover, .forgot-link:hover { color: #c4ceff; text-decoration: underline; }
+.auth-switch a, .auth-switch button, .forgot-link { padding: 0; border: 0; color: #9eafff; background: transparent; font-size: 12px; font-weight: 700; text-decoration: none; }
+.auth-switch a:hover, .auth-switch button:hover, .forgot-link:hover { color: #c4ceff; text-decoration: underline; }
+.auth-toast { position: fixed; z-index: 30; right: 24px; bottom: 24px; max-width: min(420px, calc(100vw - 32px)); padding: 13px 18px; border: 1px solid #315b51; border-radius: 10px; color: #c6f3dc; background: #142c2a; box-shadow: 0 12px 32px rgba(0, 0, 0, .32); font-size: 13px; }
 .forgot-link { justify-self: end; }
 .forgot-link:disabled { opacity: .65; cursor: wait; }
 .form-success { margin: 3px 0; color: #9de4c0; font-size: 12px; }

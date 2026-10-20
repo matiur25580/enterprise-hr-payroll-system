@@ -3,7 +3,6 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const SetupLock = require('../models/SetupLock');
 const EmailChallenge = require('../models/EmailChallenge');
 const sendOtpEmail = require('../utils/email');
 const createRateLimit = require('../middlewares/rateLimit');
@@ -13,7 +12,7 @@ const router = express.Router();
 const OTP_LIFETIME_MS = 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
 const loginRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many sign-in attempts. Try again later.' });
-const registrationRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many account setup attempts. Try again later.' });
+const registrationRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many signup attempts. Try again later.' });
 const otpRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many verification requests. Try again later.' });
 
 router.get('/session', verifyToken, (req, res) => {
@@ -88,15 +87,6 @@ async function consumeOtp(challenge, code) {
   return Boolean(attempt && await bcrypt.compare(code, attempt.codeHash));
 }
 
-router.get('/setup-status', async (req, res) => {
-  try {
-    return res.json({ initialAdminRequired: !(await User.exists({})) });
-  } catch (error) {
-    console.error('Could not check initial account setup:', error);
-    return res.status(500).json({ message: 'Could not check account setup status.' });
-  }
-});
-
 router.post('/signup', registrationRateLimit, async (req, res) => {
   const name = typeof req.body.name === 'string' ? req.body.name.trim().replace(/\s+/g, ' ') : '';
   const email = normalizeEmail(req.body.email);
@@ -107,68 +97,25 @@ router.post('/signup', registrationRateLimit, async (req, res) => {
     return res.status(400).json({ message: 'Enter a valid name and email address, and a password with at least 8 characters.' });
   }
 
-  const claimId = crypto.randomUUID();
-  let claimed = false;
   try {
-    if (await User.exists({})) {
-      return res.status(403).json({ message: 'Initial administrator setup is already complete.' });
-    }
-
-    try {
-      await SetupLock.create({
-        _id: 'initial-admin-setup',
-        status: 'in-progress',
-        claimId,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-      });
-      claimed = true;
-    } catch (error) {
-      if (error.code !== 11000) throw error;
-      const lock = await SetupLock.findOneAndUpdate(
-        { _id: 'initial-admin-setup', status: 'in-progress', expiresAt: { $lte: new Date() } },
-        { $set: { claimId, expiresAt: new Date(Date.now() + 5 * 60 * 1000) } },
-        { new: true },
-      );
-      if (!lock) return res.status(403).json({ message: 'Initial administrator setup is already complete or in progress.' });
-      claimed = true;
-    }
-
-    if (await User.exists({})) {
-      await SetupLock.deleteOne({ _id: 'initial-admin-setup', claimId });
-      return res.status(403).json({ message: 'Initial administrator setup is already complete.' });
-    }
-
     const user = new User({
       name,
       email,
       password: await bcrypt.hash(password, 12),
-      role: 'admin',
+      role: 'employee',
       status: 'active',
     });
-    user.userId = `AD${user._id.toString().toUpperCase()}`;
+    user.userId = `EM${user._id.toString().toUpperCase()}`;
     await user.save();
-    try {
-      await SetupLock.deleteOne({ _id: 'initial-admin-setup', claimId });
-    } catch (cleanupError) {
-      console.error('Could not clear initial-admin setup lock:', cleanupError);
-    }
-
     return res.status(201).json({
-      message: 'Administrator account created. You can now sign in.',
+      message: 'Account created. You can now sign in.',
       user: { userId: user.userId, role: user.role, status: user.status },
     });
   } catch (error) {
-    if (claimed) {
-      try {
-        await SetupLock.deleteOne({ _id: 'initial-admin-setup', claimId, status: 'in-progress' });
-      } catch (cleanupError) {
-        console.error('Could not release initial-admin setup lock:', cleanupError);
-      }
-    }
     if (error.code === 11000) return res.status(409).json({ message: 'An account with this email already exists.' });
     if (error.name === 'ValidationError') return res.status(400).json({ message: 'Account data is invalid.' });
-    console.error('Could not create initial administrator:', error);
-    return res.status(500).json({ message: 'Could not create the administrator account.' });
+    console.error('Could not create user account:', error);
+    return res.status(500).json({ message: 'Could not create your account.' });
   }
 });
 

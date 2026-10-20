@@ -91,14 +91,14 @@ Replace these placeholders with sanitized screenshots. Never use real employee, 
 | Screen | Image |
 | --- | --- |
 | Login | `screenshots/login.png` |
-| Initial Admin setup | `screenshots/initial-admin-setup.png` |
+| Signup | `screenshots/signup.png` |
 | Admin dashboard | `screenshots/admin-dashboard.png` |
 | HR dashboard | `screenshots/hr-dashboard.png` |
 | Employee dashboard | `screenshots/employee-dashboard.png` |
 
 ## Account setup
 
-The application does not include demo accounts or seed data. On a database with no users, the login screen offers a one-time **Create Admin Account** flow. Once that first administrator exists, public signup is disabled. Admin and HR users create employee accounts from the People workspace; each account requires a unique email and a password of at least eight characters.
+The application does not include demo accounts or seed data. Visitors can create an employee account from `/signup`; signup stores the user in MongoDB with a hashed password. Admin and HR users can also create employee accounts from the People workspace.
 
 ## Installation and setup
 
@@ -152,9 +152,9 @@ npm test
 
 The server defaults CORS to `*` when `CLIENT_URL` is unset. Set `CLIENT_URL` to the exact deployed frontend origin in production.
 
-### First Admin account
+### Account signup
 
-When the configured MongoDB database contains no users, open the client and choose **Create Admin Account**. That one-time signup creates the first active Admin; subsequent public signup attempts are rejected. Admin and HR users create additional accounts from the People workspace. SMTP must be configured for the new employee welcome email.
+Open `/signup` to create an active Employee account using a unique email and a password of at least eight characters. Sign in at `/login` after signup. Public signup never grants administrator privileges; create Admin and HR accounts from the People workspace.
 
 ## Environment variables
 

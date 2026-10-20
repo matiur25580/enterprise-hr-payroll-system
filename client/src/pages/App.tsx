@@ -54,7 +54,11 @@ export default function App() {
 
   useEffect(() => {
     if (!authInitialized) return
-    const route = session ? rolePaths[session.role] : '/'
+    const route = session
+      ? rolePaths[session.role]
+      : ['/', '/login', '/signup'].includes(window.location.pathname) && window.location.pathname !== '/'
+        ? window.location.pathname
+        : '/login'
     if (window.location.pathname !== route) window.history.replaceState(null, '', route)
   }, [authInitialized, session])
 
