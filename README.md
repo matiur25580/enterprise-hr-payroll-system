@@ -80,7 +80,7 @@ The client uses Preact rather than React; it is React-compatible and runs with V
 
 Additional project tooling and capabilities:
 
-- **Email:** Nodemailer with environment-configured SMTP for email verification and password-reset OTP delivery.
+- **Email:** Nodemailer with environment-configured SMTP for employee welcome messages and password-reset OTP delivery.
 - **Documents and exports:** Protected PDF download endpoints, server-generated PDFKit payslips, jsPDF reports and CSV exports that open in spreadsheet tools.
 - **Deployment:** No production hosting configuration is included. Configure HTTPS, environment secrets, MongoDB access controls, backups, monitoring and an approved deployment platform before launch.
 
@@ -91,20 +91,14 @@ Replace these placeholders with sanitized screenshots. Never use real employee, 
 | Screen | Image |
 | --- | --- |
 | Login | `screenshots/login.png` |
-| Signup | `screenshots/signup.png` |
+| Initial Admin setup | `screenshots/initial-admin-setup.png` |
 | Admin dashboard | `screenshots/admin-dashboard.png` |
 | HR dashboard | `screenshots/hr-dashboard.png` |
 | Employee dashboard | `screenshots/employee-dashboard.png` |
 
-## Demo accounts
+## Account setup
 
-These are example email addresses, not pre-seeded credentials. Provision matching users in your own database before signing in; the project does not ship with shared demo passwords.
-
-| Role | Example email | Provisioning |
-| --- | --- | --- |
-| Admin | `admin@example.com` | Create the first administrator with the provisioning script below. |
-| HR | `hr@example.com` | Create an HR account from the Admin workspace. |
-| Employee | `employee@example.com` | Register an account and wait for Admin approval, or have an Admin create one. |
+The application does not include demo accounts or seed data. On a database with no users, the login screen offers a one-time **Create Admin Account** flow. Once that first administrator exists, public signup is disabled. Admin and HR users create employee accounts from the People workspace; each account requires a unique email and a password of at least eight characters.
 
 ## Installation and setup
 
@@ -112,7 +106,7 @@ These are example email addresses, not pre-seeded credentials. Provision matchin
 
 - Node.js 20 or later and npm.
 - A MongoDB instance (local or hosted).
-- SMTP credentials if password-reset email delivery is required.
+- SMTP credentials for employee welcome and password-reset email delivery.
 
 ### 1. Clone the repository
 
@@ -130,7 +124,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Set `MONGO_URI` and `JWT_SECRET` in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters and a restricted MongoDB user. Configure SMTP variables in `server/.env` if password-reset email delivery is needed. Never commit this file.
+Set `MONGO_URI` and `JWT_SECRET` in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters and a restricted MongoDB user. Configure SMTP variables in `server/.env` for employee welcome email and password-reset email delivery. Never commit this file.
 
 ### 3. Configure and run the client
 
@@ -158,15 +152,9 @@ npm test
 
 The server defaults CORS to `*` when `CLIENT_URL` is unset. Set `CLIENT_URL` to the exact deployed frontend origin in production.
 
-### Provisioning the first Admin
+### First Admin account
 
-Public registration creates employee accounts with pending status; an Admin must approve each account and assign the Employee or HR role before sign-in is enabled. The first Admin cannot be created through public registration. Provision that account from a trusted terminal after configuring `server/.env` with the target `MONGO_URI`:
-
-```bash
-npm --prefix server run seed:admin
-```
-
-The CLI securely prompts for the Admin's name, email address and password (password entry is masked). Use a password of 14–72 characters (at most 72 UTF-8 bytes) with uppercase and lowercase letters, a number and a symbol, and no spaces. The password is hashed with bcrypt before the user is saved. Provisioning is refused if an Admin account already exists. The script uses a MongoDB transaction and a unique provisioning claim to ensure only one first Admin can be created; the target MongoDB deployment must support transactions (MongoDB Atlas or a replica set).
+When the configured MongoDB database contains no users, open the client and choose **Create Admin Account**. That one-time signup creates the first active Admin; subsequent public signup attempts are rejected. Admin and HR users create additional accounts from the People workspace. SMTP must be configured for the new employee welcome email.
 
 ## Environment variables
 

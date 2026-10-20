@@ -3,6 +3,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const SetupLock = require('../models/SetupLock');
 const EmailChallenge = require('../models/EmailChallenge');
 const sendOtpEmail = require('../utils/email');
 const createRateLimit = require('../middlewares/rateLimit');
@@ -11,9 +12,8 @@ const { verifyToken } = require('../middlewares/auth');
 const router = express.Router();
 const OTP_LIFETIME_MS = 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
-const rolePrefixes = { admin: 'AD', hr: 'HR', employee: 'EM' };
 const loginRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many sign-in attempts. Try again later.' });
-const registrationRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many registration attempts. Try again later.' });
+const registrationRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many account setup attempts. Try again later.' });
 const otpRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many verification requests. Try again later.' });
 
 router.get('/session', verifyToken, (req, res) => {
@@ -65,7 +65,7 @@ async function saveChallenge({ email, purpose, userId }) {
   );
 
   try {
-    await sendOtpEmail(email, code, purpose);
+    await sendOtpEmail(email, code);
   } catch (error) {
     console.error('Could not send verification email:', error);
     await EmailChallenge.deleteOne({ _id: challenge._id, codeHash });
@@ -88,40 +88,87 @@ async function consumeOtp(challenge, code) {
   return Boolean(attempt && await bcrypt.compare(code, attempt.codeHash));
 }
 
-router.post('/register', registrationRateLimit, async (req, res) => {
+router.get('/setup-status', async (req, res) => {
   try {
-    const { name, password } = req.body;
-    const normalizedName = typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : '';
-    const email = normalizeEmail(req.body.email);
+    return res.json({ initialAdminRequired: !(await User.exists({})) });
+  } catch (error) {
+    console.error('Could not check initial account setup:', error);
+    return res.status(500).json({ message: 'Could not check account setup status.' });
+  }
+});
 
-    if (!normalizedName || normalizedName.length > 120 || !email || email.length > 254
-      || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-      || typeof password !== 'string' || password.length < 8 || password.length > 128) {
-      return res.status(400).json({ message: 'Enter a valid name and email address, and a password with at least 8 characters.' });
+router.post('/signup', registrationRateLimit, async (req, res) => {
+  const name = typeof req.body.name === 'string' ? req.body.name.trim().replace(/\s+/g, ' ') : '';
+  const email = normalizeEmail(req.body.email);
+  const password = req.body.password;
+  if (!name || name.length > 120 || !email || email.length > 254
+    || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    || typeof password !== 'string' || password.length < 8 || Buffer.byteLength(password, 'utf8') > 72) {
+    return res.status(400).json({ message: 'Enter a valid name and email address, and a password with at least 8 characters.' });
+  }
+
+  const claimId = crypto.randomUUID();
+  let claimed = false;
+  try {
+    if (await User.exists({})) {
+      return res.status(403).json({ message: 'Initial administrator setup is already complete.' });
     }
 
-    const existingUser = await User.exists({ email });
-    if (existingUser) return res.status(409).json({ message: 'This email is already registered. Please log in.' });
+    try {
+      await SetupLock.create({
+        _id: 'initial-admin-setup',
+        status: 'in-progress',
+        claimId,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      });
+      claimed = true;
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+      const lock = await SetupLock.findOneAndUpdate(
+        { _id: 'initial-admin-setup', status: 'in-progress', expiresAt: { $lte: new Date() } },
+        { $set: { claimId, expiresAt: new Date(Date.now() + 5 * 60 * 1000) } },
+        { new: true },
+      );
+      if (!lock) return res.status(403).json({ message: 'Initial administrator setup is already complete or in progress.' });
+      claimed = true;
+    }
+
+    if (await User.exists({})) {
+      await SetupLock.deleteOne({ _id: 'initial-admin-setup', claimId });
+      return res.status(403).json({ message: 'Initial administrator setup is already complete.' });
+    }
 
     const user = new User({
-      name: normalizedName,
+      name,
       email,
-      password: await bcrypt.hash(password, 10),
-      role: 'employee',
-      status: 'pending',
+      password: await bcrypt.hash(password, 12),
+      role: 'admin',
+      status: 'active',
     });
-    user.userId = `${rolePrefixes.employee}${user._id.toString().toUpperCase()}`;
+    user.userId = `AD${user._id.toString().toUpperCase()}`;
     await user.save();
+    try {
+      await SetupLock.deleteOne({ _id: 'initial-admin-setup', claimId });
+    } catch (cleanupError) {
+      console.error('Could not clear initial-admin setup lock:', cleanupError);
+    }
 
     return res.status(201).json({
-      message: 'Account created. It will be available after admin approval.',
+      message: 'Administrator account created. You can now sign in.',
       user: { userId: user.userId, role: user.role, status: user.status },
     });
   } catch (error) {
-    if (error.code === 11000) return res.status(409).json({ message: 'This email is already registered. Please log in.' });
+    if (claimed) {
+      try {
+        await SetupLock.deleteOne({ _id: 'initial-admin-setup', claimId, status: 'in-progress' });
+      } catch (cleanupError) {
+        console.error('Could not release initial-admin setup lock:', cleanupError);
+      }
+    }
+    if (error.code === 11000) return res.status(409).json({ message: 'An account with this email already exists.' });
     if (error.name === 'ValidationError') return res.status(400).json({ message: 'Account data is invalid.' });
-    console.error('Could not register account:', error);
-    return res.status(500).json({ message: 'Could not create your account. Please try again.' });
+    console.error('Could not create initial administrator:', error);
+    return res.status(500).json({ message: 'Could not create the administrator account.' });
   }
 });
 
@@ -148,7 +195,8 @@ router.post('/password-reset/reset', async (req, res) => {
     const userId = normalizeUserId(req.body.userId);
     const code = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
     const password = req.body.password;
-    if (!email || !userId || !/^\d{4}$/.test(code) || typeof password !== 'string' || password.length < 8 || password.length > 128) {
+    if (!email || !userId || !/^\d{4}$/.test(code) || typeof password !== 'string'
+      || password.length < 8 || Buffer.byteLength(password, 'utf8') > 72) {
       return res.status(400).json({ message: 'Enter a valid code and a password with at least 8 characters.' });
     }
 
@@ -171,18 +219,15 @@ router.post('/password-reset/reset', async (req, res) => {
 
 router.post('/login', loginRateLimit, async (req, res) => {
   try {
-    const identifier = typeof req.body.email === 'string' ? req.body.email : req.body.userId;
-    const email = normalizeEmail(identifier);
-    const userId = normalizeUserId(identifier);
+    const email = normalizeEmail(req.body.email);
     const password = req.body.password;
-    const requestedRole = typeof req.body.role === 'string' ? req.body.role.trim().toLowerCase() : '';
-    if ((!email && !userId) || typeof password !== 'string'
-      || (req.body.role !== undefined && !['admin', 'hr', 'employee'].includes(requestedRole))) {
+    if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      || typeof password !== 'string' || Buffer.byteLength(password, 'utf8') > 72) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    const user = await User.findOne(email.includes('@') ? { email } : { userId });
-    if (!user || (requestedRole && user.role !== requestedRole) || !(await bcrypt.compare(password, user.password))) {
+    const user = await User.findOne({ email });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
     if (user.status !== 'active') {

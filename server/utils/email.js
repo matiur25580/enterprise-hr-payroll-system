@@ -20,17 +20,32 @@ function createTransporter() {
   });
 }
 
-async function sendOtpEmail(email, code, purpose) {
+async function sendOtpEmail(email, code) {
   const transporter = createTransporter();
-  const subject = purpose === 'signup' ? 'Verify your email address' : 'Password reset code';
-  const action = purpose === 'signup' ? 'complete your account registration' : 'reset your password';
-
   await transporter.sendMail({
     from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
     to: email,
-    subject,
-    text: `Your verification code to ${action} is ${code}. It expires in 60 seconds. If you did not request this, you can ignore this email.`,
+    subject: 'Password reset code',
+    text: `Your verification code to reset your password is ${code}. It expires in 60 seconds. If you did not request this, you can ignore this email.`,
+  });
+}
+
+async function sendWelcomeEmail(email, name) {
+  const transporter = createTransporter();
+  let loginUrl = 'your organization’s sign-in page';
+  try {
+    const configuredUrl = new URL(process.env.CLIENT_URL);
+    if (configuredUrl.protocol === 'https:' || configuredUrl.protocol === 'http:') loginUrl = configuredUrl.href;
+  } catch {
+    if (process.env.CLIENT_URL) console.warn('CLIENT_URL is not a valid sign-in URL; omitting it from the welcome email.');
+  }
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+    to: email,
+    subject: 'Your workplace account is ready',
+    text: `Hello ${name},\n\nYour workplace account has been created. You can sign in at ${loginUrl} using your work email address. Your administrator will provide your password through an approved secure channel.\n\nIf you were not expecting this account, contact your organization’s administrator.`,
   });
 }
 
 module.exports = sendOtpEmail;
+module.exports.sendWelcomeEmail = sendWelcomeEmail;

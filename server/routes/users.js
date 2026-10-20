@@ -6,6 +6,7 @@ const User = require('../models/User');
 const { verifyToken, authorize } = require('../middlewares/auth');
 const recordWorkplaceActivity = require('../utils/activity');
 const recordAudit = require('../utils/audit');
+const sendWelcomeEmail = require('../utils/email').sendWelcomeEmail;
 
 const router = express.Router();
 const rolePrefixes = { admin: 'AD', hr: 'HR', employee: 'EM' };
@@ -52,7 +53,7 @@ router.patch('/pending-approvals/:id', verifyToken, authorize('admin'), async (r
   }
 });
 
-router.post('/create-by-admin', verifyToken, authorize('admin'), async (req, res) => {
+router.post('/', verifyToken, authorize('admin', 'hr'), async (req, res) => {
   const name = typeof req.body.name === 'string' ? req.body.name.trim().replace(/\s+/g, ' ') : '';
   const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const department = typeof req.body.department === 'string' ? req.body.department.trim() : '';
@@ -61,15 +62,17 @@ router.post('/create-by-admin', verifyToken, authorize('admin'), async (req, res
   const role = typeof req.body.role === 'string' ? req.body.role.trim().toLowerCase() : '';
   const salary = req.body.salary === '' ? NaN : Number(req.body.salary);
 
+  const allowedRoles = req.user.role === 'admin' ? ['admin', 'hr', 'employee'] : ['employee'];
   if (!name || name.length > 120 || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
     || !department || department.length > 120 || !designation || designation.length > 120
     || !Number.isFinite(salary) || salary < 0
-    || typeof password !== 'string' || password.length < 6 || password.length > 128
-    || !validRoles.has(role)) {
-    return res.status(400).json({ message: 'Provide a valid name, email, department, designation, salary, password (at least 6 characters), and role.' });
+    || typeof password !== 'string' || password.length < 8 || Buffer.byteLength(password, 'utf8') > 72
+    || !validRoles.has(role) || !allowedRoles.includes(role)) {
+    return res.status(400).json({ message: 'Provide valid employee details, a password with at least 8 characters, and a role you are permitted to create.' });
   }
 
   let createdUser;
+  let createdEmployee;
   try {
     const [existingUser, existingEmployee] = await Promise.all([
       User.exists({ email }),
@@ -96,19 +99,29 @@ router.post('/create-by-admin', verifyToken, authorize('admin'), async (req, res
     const employee = new Employee({ name, email, department, designation, salary });
     employee.employeeId = `EMP-${employee._id.toString().toUpperCase()}`;
     await employee.save();
+    createdEmployee = employee;
+
+    await sendWelcomeEmail(email, name);
 
     await recordWorkplaceActivity(req, email, 'employee-added', `${name} was added to the employee directory.`);
     await recordAudit(req, 'created', 'employee', employee._id, `Added employee ${name} and a ${role} account.`);
 
     return res.status(201).json({
       ok: true,
-      message: 'Employee and account created successfully.',
       employeeId: employee.employeeId,
       accountId: user.userId,
       email: user.email,
       role: user.role,
+      message: 'Employee account created and welcome email sent.',
     });
   } catch (error) {
+    if (createdEmployee) {
+      try {
+        await Employee.deleteOne({ _id: createdEmployee._id });
+      } catch (cleanupError) {
+        console.error('Could not roll back employee after account creation failed:', cleanupError);
+      }
+    }
     if (createdUser) {
       try {
         await User.deleteOne({ _id: createdUser._id });
@@ -118,6 +131,9 @@ router.post('/create-by-admin', verifyToken, authorize('admin'), async (req, res
     }
     if (error.code === 11000) {
       return res.status(409).json({ message: 'An account or employee record with this email already exists.' });
+    }
+    if (error.status === 503) {
+      return res.status(503).json({ message: 'Email delivery is unavailable. The employee account was not created.' });
     }
     if (error.name === 'ValidationError' || error.name === 'CastError') {
       return res.status(400).json({ message: 'Employee or account data is invalid.' });

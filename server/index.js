@@ -1,11 +1,9 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const bcrypt = require('bcryptjs');
 const connectDatabase = require('./config/database');
 const { getHealth } = require('./controllers/health');
 const Employee = require('./models/Employee');
-const User = require('./models/User');
 
 const authRoutes = require('./routes/auth');
 const employeeRoutes = require('./routes/employees');
@@ -53,68 +51,6 @@ app.get('/api/employees', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Could not load employees:', error);
     return res.status(500).json({ message: error.message });
-  }
-});
-app.post('/api/employees', authMiddleware, authorize('admin', 'hr'), async (req, res) => {
-  const name = typeof req.body.name === 'string' ? req.body.name.trim().replace(/\s+/g, ' ') : '';
-  const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
-  const department = typeof req.body.department === 'string' ? req.body.department.trim() : '';
-  const designation = typeof req.body.designation === 'string' ? req.body.designation.trim() : '';
-  const password = req.body.password;
-  const role = typeof req.body.role === 'string' ? req.body.role.trim().toLowerCase() : '';
-  const salary = req.body.salary === '' ? NaN : Number(req.body.salary);
-  const allowedRoles = req.user.role === 'admin' ? ['admin', 'hr', 'employee'] : ['employee'];
-
-  if (!name || name.length > 120 || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-    || !department || department.length > 120 || !designation || designation.length > 120
-    || !Number.isFinite(salary) || salary < 0
-    || typeof password !== 'string' || password.length < 6 || password.length > 128
-    || !allowedRoles.includes(role)) {
-    return res.status(400).json({ message: 'Provide valid employee details, a password (6-128 characters), and an allowed role.' });
-  }
-
-  let user;
-  try {
-    const [existingUser, existingEmployee] = await Promise.all([
-      User.exists({ email }),
-      Employee.exists({ email }),
-    ]);
-    if (existingUser || existingEmployee) {
-      return res.status(409).json({ message: 'An account or employee record with this email already exists.' });
-    }
-
-    user = new User({
-      name,
-      email,
-      password: await bcrypt.hash(password, 10),
-      role,
-      status: 'active',
-      department,
-      designation,
-      salary,
-    });
-    await user.save();
-
-    const employee = new Employee({ name, email, department, designation, salary });
-    employee.employeeId = `EMP-${employee._id.toString().toUpperCase()}`;
-    await employee.save();
-    return res.status(201).json({ ...employee.toObject(), role: user.role });
-  } catch (error) {
-    if (user) {
-      try {
-        await User.deleteOne({ _id: user._id });
-      } catch (cleanupError) {
-        console.error('Could not roll back user after employee creation failed:', cleanupError);
-      }
-    }
-    if (error.code === 11000) {
-      return res.status(409).json({ message: 'An account or employee record with this email already exists.' });
-    }
-    if (error.name === 'ValidationError' || error.name === 'CastError') {
-      return res.status(400).json({ message: 'Employee or account data is invalid.' });
-    }
-    console.error('Could not create employee and account:', error);
-    return res.status(500).json({ message: 'Could not create the employee and account.' });
   }
 });
 app.use('/api/employees', employeeRoutes);

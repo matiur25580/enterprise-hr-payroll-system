@@ -429,10 +429,11 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
           <div className="panel-heading"><div><span className="eyebrow">EMPLOYEE LIFECYCLE</span><h2>Add a team member</h2></div></div>
           <AddEmployee
             token={session.token}
-            onAdded={(employeeId) => {
+            role={role}
+            onAdded={(employee) => {
               logAudit('ADD', 'Added a new employee')
               void fetchEmployees()
-              notify(`Employee added successfully. Employee ID: ${employeeId}`)
+              notify(`${employee.email} added successfully. Welcome email sent.`)
             }}
             onUnauthorized={onLogout}
           />
@@ -508,7 +509,7 @@ export default function Dashboard({ session, onLogout }: DashboardProps) {
           {roleConfig.nav.map((item) => <button key={item.id} className={`nav-item ${activeSection === item.id ? 'nav-active' : ''}`} onClick={() => setActiveSection(item.id)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></button>)}
         </nav>
         <div className="sidebar-bottom">
-          <div className="help-card"><span className="help-icon">✦</span><strong>Need a hand?</strong><p>Contact your people operations team for support.</p><a href="mailto:people@company.com">Get support <span aria-hidden="true">→</span></a></div>
+          <div className="help-card"><span className="help-icon">✦</span><strong>Need a hand?</strong><p>Contact your people operations team for support.</p></div>
           <button className="user-menu" onClick={onLogout}><span className="avatar user-avatar">{session.name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()}</span><span className="user-details"><strong>{session.name}</strong><small>{role} account</small></span><span className="logout-icon" aria-label="Sign out">↗</span></button>
         </div>
       </aside>
