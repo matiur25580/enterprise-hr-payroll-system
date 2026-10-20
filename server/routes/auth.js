@@ -9,8 +9,10 @@ const createRateLimit = require('../middlewares/rateLimit');
 const { verifyToken } = require('../middlewares/auth');
 
 const router = express.Router();
-const OTP_LIFETIME_MS = 60 * 1000;
+const OTP_LIFETIME_MS = 10 * 60 * 1000;
+const OTP_RESEND_DELAY_MS = 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
+const rolePrefixes = { admin: 'AD', hr: 'HR', employee: 'EM' };
 const loginRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many sign-in attempts. Try again later.' });
 const registrationRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many signup attempts. Try again later.' });
 const otpRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many verification requests. Try again later.' });
@@ -34,11 +36,45 @@ function normalizeUserId(userId) {
   return typeof userId === 'string' ? userId.trim().toUpperCase() : '';
 }
 
-function makeOtp() {
-  return crypto.randomInt(0, 10000).toString().padStart(4, '0');
+function normalizeRole(role) {
+  return typeof role === 'string' ? role.trim().toLowerCase() : '';
 }
 
-async function saveChallenge({ email, purpose, userId }) {
+function makeOtp() {
+  return crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
+}
+
+function parseBirthDate(value) {
+  if (typeof value !== 'string' || !/^\d{8}$/.test(value)) return null;
+  const day = Number(value.slice(0, 2));
+  const month = Number(value.slice(2, 4));
+  const year = Number(value.slice(4, 8));
+  if (year < 1900) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day || date.getTime() > Date.now()) return null;
+  return date;
+}
+
+function normalizePhone(phone) {
+  if (typeof phone !== 'string' || !/^[+\d\s().-]+$/.test(phone)) return '';
+  const digits = phone.replace(/\D/g, '');
+  return digits.length >= 7 && digits.length <= 15 ? `+${digits}` : '';
+}
+
+function makeUniqueId(name, role, birthDate) {
+  const names = name.trim().split(/\s+/);
+  const first = names[0]?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/[a-z]/i)?.[0];
+  const surname = names[names.length - 1]?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/[a-z]/i)?.[0];
+  if (names.length < 2 || !first || !surname || !rolePrefixes[role]) return null;
+
+  const day = String(birthDate.getUTCDate()).padStart(2, '0');
+  const month = String(birthDate.getUTCMonth() + 1).padStart(2, '0');
+  const year = birthDate.getUTCFullYear();
+  return `${rolePrefixes[role]}${first}${surname}`.toUpperCase() + `${day}${month}${year}`;
+}
+
+async function saveChallenge({ email, purpose, pendingSignup, userId }) {
   const currentChallenge = await EmailChallenge.findOne({ email, purpose }).select('resendAfter').lean();
   if (currentChallenge?.resendAfter && currentChallenge.resendAfter.getTime() > Date.now()) {
     const error = new Error('Please wait before requesting another code.');
@@ -52,19 +88,27 @@ async function saveChallenge({ email, purpose, userId }) {
   const update = {
     codeHash,
     expiresAt: new Date(now + OTP_LIFETIME_MS),
-    resendAfter: new Date(now + OTP_LIFETIME_MS),
+    resendAfter: new Date(now + OTP_RESEND_DELAY_MS),
     attempts: 0,
   };
-  if (userId) update.userId = userId;
+  const unset = { verifiedAt: 1 };
+  if (pendingSignup) {
+    update.pendingSignup = pendingSignup;
+    unset.userId = 1;
+  }
+  if (userId) {
+    update.userId = userId;
+    unset.pendingSignup = 1;
+  }
 
   const challenge = await EmailChallenge.findOneAndUpdate(
     { email, purpose },
-    { $set: update },
+    { $set: update, $unset: unset },
     { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
   );
 
   try {
-    await sendOtpEmail(email, code);
+    await sendOtpEmail(email, code, purpose);
   } catch (error) {
     console.error('Could not send verification email:', error);
     await EmailChallenge.deleteOne({ _id: challenge._id, codeHash });
@@ -72,6 +116,10 @@ async function saveChallenge({ email, purpose, userId }) {
     deliveryError.status = 503;
     throw deliveryError;
   }
+}
+
+async function findDuplicateRegistration(email, phone) {
+  return User.exists({ $or: [{ email }, { phone }] });
 }
 
 async function consumeOtp(challenge, code) {
@@ -87,47 +135,107 @@ async function consumeOtp(challenge, code) {
   return Boolean(attempt && await bcrypt.compare(code, attempt.codeHash));
 }
 
-router.post('/signup', registrationRateLimit, async (req, res) => {
-  const name = typeof req.body.name === 'string' ? req.body.name.trim().replace(/\s+/g, ' ') : '';
-  const email = normalizeEmail(req.body.email);
-  const password = req.body.password;
-  if (!name || name.length > 120 || !email || email.length > 254
-    || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-    || typeof password !== 'string' || password.length < 8 || Buffer.byteLength(password, 'utf8') > 72) {
-    return res.status(400).json({ message: 'Enter a valid name and email address, and a password with at least 8 characters.' });
-  }
-
+router.post('/signup/request-otp', registrationRateLimit, async (req, res) => {
   try {
+    const name = typeof req.body.name === 'string' ? req.body.name.trim().replace(/\s+/g, ' ') : '';
+    const email = normalizeEmail(req.body.email);
+    const phone = normalizePhone(req.body.phone);
+    const birthDate = parseBirthDate(req.body.dateOfBirth);
+    const role = normalizeRole(req.body.role);
+    const password = req.body.password;
+    const confirmPassword = req.body.confirmPassword;
+
+    if (!name || name.length > 120 || name.split(/\s+/).length < 2
+      || !email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      || !phone || !birthDate || !rolePrefixes[role] || !makeUniqueId(name, role, birthDate)
+      || typeof password !== 'string' || password.length < 8 || Buffer.byteLength(password, 'utf8') > 72
+      || password !== confirmPassword) {
+      return res.status(400).json({ message: 'Complete every field with valid information. Enter your full name, use a valid date, and ensure passwords match and contain at least 8 characters.' });
+    }
+
+    if (await findDuplicateRegistration(email, phone)) {
+      return res.status(409).json({ message: 'this email and number already registered, plz login' });
+    }
+
+    await saveChallenge({
+      email,
+      purpose: 'signup',
+      pendingSignup: {
+        name,
+        phone,
+        dateOfBirth: birthDate,
+        role,
+        password: await bcrypt.hash(password, 12),
+      },
+    });
+    res.json({ message: 'Verification code sent to your email address.', expiresIn: OTP_LIFETIME_MS / 1000 });
+  } catch (error) {
+    if (error.status === 429) return res.status(429).json({ message: error.message });
+    if (error.status === 503) return res.status(503).json({ message: 'Email delivery is unavailable. Contact the system administrator.' });
+    console.error('Could not start account registration:', error);
+    res.status(500).json({ message: 'Could not start registration. Please try again.' });
+  }
+});
+
+router.post('/signup/verify-otp', otpRateLimit, async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+    const code = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
+    if (!email || !/^\d{6}$/.test(code)) return res.status(400).json({ message: 'invalid credentials/OTP' });
+
+    const challenge = await EmailChallenge.findOne({ email, purpose: 'signup' });
+    const verified = await consumeOtp(challenge, code);
+    if (!verified || !challenge.pendingSignup) {
+      return res.status(400).json({ message: 'invalid credentials/OTP' });
+    }
+
+    const { name, phone, dateOfBirth, role, password } = challenge.pendingSignup;
+    if (await findDuplicateRegistration(email, phone)) {
+      await EmailChallenge.deleteOne({ _id: challenge._id });
+      return res.status(409).json({ message: 'this email and number already registered, plz login' });
+    }
+
+    const uniqueId = makeUniqueId(name, role, new Date(dateOfBirth));
+    if (!uniqueId) return res.status(400).json({ message: 'Registration information is invalid.' });
     const user = new User({
       name,
       email,
-      password: await bcrypt.hash(password, 12),
-      role: 'employee',
+      uniqueId,
+      userId: uniqueId,
+      phone,
+      dateOfBirth,
+      password,
+      role,
       status: 'active',
     });
-    user.userId = `EM${user._id.toString().toUpperCase()}`;
     await user.save();
-    return res.status(201).json({
-      message: 'Account created. You can now sign in.',
-      user: { userId: user.userId, role: user.role, status: user.status },
+    await EmailChallenge.deleteOne({ _id: challenge._id });
+    res.status(201).json({
+      message: 'registration successful',
+      user: { id: user._id, name: user.name, email: user.email, uniqueId, userId: uniqueId, role: user.role },
     });
   } catch (error) {
-    if (error.code === 11000) return res.status(409).json({ message: 'An account with this email already exists.' });
-    if (error.name === 'ValidationError') return res.status(400).json({ message: 'Account data is invalid.' });
-    console.error('Could not create user account:', error);
-    return res.status(500).json({ message: 'Could not create your account.' });
+    if (error.code === 11000) {
+      if (error.keyPattern?.uniqueId || error.keyPattern?.userId) {
+        return res.status(409).json({ message: 'Could not create a unique ID in the requested format. Please contact support.' });
+      }
+      return res.status(409).json({ message: 'this email and number already registered, plz login' });
+    }
+    console.error('Could not complete account registration:', error);
+    res.status(500).json({ message: 'Could not complete registration. Please try again.' });
   }
 });
 
 router.post('/password-reset/request-otp', otpRateLimit, async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email);
-    const userId = normalizeUserId(req.body.userId);
-    if (!email || !userId) return res.status(400).json({ message: 'Enter your account ID and email address.' });
+    const userId = normalizeUserId(req.body.uniqueId || req.body.userId);
+    if (!email || !userId) return res.status(400).json({ message: 'Enter your unique ID and email address.' });
 
-    const user = await User.findOne({ userId, email }).select('_id userId email').lean();
-    if (user) await saveChallenge({ email, purpose: 'password-reset', userId: user.userId });
-    res.json({ message: 'If the account exists, a verification code will be sent to its email address.', expiresIn: 60 });
+    const user = await User.findOne({ $or: [{ uniqueId: userId }, { userId }], email }).select('_id uniqueId userId email').lean();
+    if (!user) return res.status(404).json({ message: "this unique id doesn't exist with this email" });
+    await saveChallenge({ email, purpose: 'password-reset', userId: user.uniqueId || user.userId });
+    res.json({ message: 'Verification code sent to your email address.', expiresIn: OTP_LIFETIME_MS / 1000 });
   } catch (error) {
     if (error.status === 429) return res.status(429).json({ message: error.message });
     if (error.status === 503) return res.status(503).json({ message: 'Email delivery is unavailable. Contact the system administrator.' });
@@ -136,28 +244,59 @@ router.post('/password-reset/request-otp', otpRateLimit, async (req, res) => {
   }
 });
 
+router.post('/password-reset/verify-otp', otpRateLimit, async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+    const userId = normalizeUserId(req.body.uniqueId || req.body.userId);
+    const code = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
+    if (!email || !userId || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ message: 'invalid credentials/OTP' });
+    }
+
+    const challenge = await EmailChallenge.findOne({
+      email,
+      userId,
+      purpose: 'password-reset',
+      expiresAt: { $gt: new Date() },
+    });
+    const verified = await consumeOtp(challenge, code);
+    if (!verified) return res.status(400).json({ message: 'invalid credentials/OTP' });
+
+    challenge.verifiedAt = new Date();
+    await challenge.save();
+    res.json({ message: 'Verification successful.' });
+  } catch (error) {
+    console.error('Could not verify password reset code:', error);
+    res.status(500).json({ message: 'Could not verify the code. Please try again.' });
+  }
+});
+
 router.post('/password-reset/reset', async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email);
-    const userId = normalizeUserId(req.body.userId);
-    const code = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
+    const userId = normalizeUserId(req.body.uniqueId || req.body.userId);
     const password = req.body.password;
-    if (!email || !userId || !/^\d{4}$/.test(code) || typeof password !== 'string'
-      || password.length < 8 || Buffer.byteLength(password, 'utf8') > 72) {
-      return res.status(400).json({ message: 'Enter a valid code and a password with at least 8 characters.' });
+    if (!email || !userId || typeof password !== 'string' || password.length < 8
+      || Buffer.byteLength(password, 'utf8') > 72) {
+      return res.status(400).json({ message: 'Enter a password with at least 8 characters.' });
     }
 
-    const challenge = await EmailChallenge.findOne({ email, userId, purpose: 'password-reset' });
-    const verified = await consumeOtp(challenge, code);
-    if (!verified) return res.status(400).json({ message: 'Invalid or expired verification code.' });
+    const challenge = await EmailChallenge.findOne({
+      email,
+      userId,
+      purpose: 'password-reset',
+      expiresAt: { $gt: new Date() },
+      verifiedAt: { $exists: true },
+    });
+    if (!challenge) return res.status(400).json({ message: 'Verify your OTP before changing your password.' });
 
-    const user = await User.findOne({ email, userId });
-    if (!user) return res.status(400).json({ message: 'Invalid account ID or email address.' });
-    user.password = await bcrypt.hash(password, 10);
+    const user = await User.findOne({ email, $or: [{ uniqueId: userId }, { userId }] });
+    if (!user) return res.status(404).json({ message: "this unique id doesn't exist with this email" });
+    user.password = await bcrypt.hash(password, 12);
     user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
     await EmailChallenge.deleteOne({ _id: challenge._id });
-    res.json({ message: 'Password reset successful. You can now log in.' });
+    res.json({ message: 'password successfully change' });
   } catch (error) {
     console.error('Could not reset password:', error);
     res.status(500).json({ message: 'Could not reset your password. Please try again.' });
@@ -166,31 +305,51 @@ router.post('/password-reset/reset', async (req, res) => {
 
 router.post('/login', loginRateLimit, async (req, res) => {
   try {
-    const email = normalizeEmail(req.body.email);
+    const identifier = typeof req.body.identifier === 'string'
+      ? req.body.identifier
+      : typeof req.body.email === 'string'
+        ? req.body.email
+        : req.body.userId;
+    const value = typeof identifier === 'string' ? identifier.trim() : '';
+    const isEmail = value.includes('@');
+    const email = isEmail ? normalizeEmail(value) : '';
+    const userId = isEmail ? '' : normalizeUserId(value);
     const password = req.body.password;
-    if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-      || typeof password !== 'string' || Buffer.byteLength(password, 'utf8') > 72) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+    const requestedRole = normalizeRole(req.body.role);
+    if ((!email && !userId) || typeof password !== 'string' || Buffer.byteLength(password, 'utf8') > 72
+      || !rolePrefixes[requestedRole]) {
+      return res.status(400).json({ message: 'Enter your account role, email or unique ID, and password.' });
     }
 
-    const user = await User.findOne({ email });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    const user = await User.findOne(isEmail
+      ? { email }
+      : { $or: [{ uniqueId: userId }, { userId }] });
+    if (!user) {
+      return res.status(404).json({
+        message: isEmail
+          ? "this email doesn't registered, plz first registered"
+          : "this unique ID doesn't exist",
+      });
+    }
+    if (normalizeRole(user.role) !== requestedRole) {
+      return res.status(403).json({ message: 'Account role does not match the selected role.' });
+    }
+    if (!(await bcrypt.compare(password, user.password))) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
-    if (user.status !== 'active') {
-      return res.status(403).json({ message: 'Account pending admin approval' });
-    }
+    if (user.status !== 'active') return res.status(403).json({ message: 'Account pending admin approval' });
 
-    const role = String(user.role).trim().toLowerCase();
+    const role = normalizeRole(user.role);
     const token = jwt.sign(
       { id: user._id, role, email: user.email, tokenVersion: user.tokenVersion ?? 0 },
       process.env.JWT_SECRET,
       { expiresIn: '7d' },
     );
+    const uniqueId = user.uniqueId || user.userId;
     res.json({
       message: 'Login successful',
       token,
-      user: { id: user._id, name: user.name, email: user.email, userId: user.userId, role },
+      user: { id: user._id, name: user.name, email: user.email, uniqueId, userId: uniqueId, role },
     });
   } catch (error) {
     console.error('Could not sign in:', error);

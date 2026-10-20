@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  uniqueId: { type: String, unique: true, sparse: true, immutable: true, uppercase: true, trim: true },
   userId: { type: String, unique: true, sparse: true, immutable: true, uppercase: true, trim: true },
   phone: { type: String, unique: true, sparse: true, trim: true },
   dateOfBirth: { type: Date },

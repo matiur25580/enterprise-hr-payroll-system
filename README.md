@@ -80,7 +80,7 @@ The client uses Preact rather than React; it is React-compatible and runs with V
 
 Additional project tooling and capabilities:
 
-- **Email:** Nodemailer with environment-configured SMTP for employee welcome messages and password-reset OTP delivery.
+- **Email:** Nodemailer with environment-configured SMTP for account-registration and password-reset OTP delivery, plus employee welcome messages.
 - **Documents and exports:** Protected PDF download endpoints, server-generated PDFKit payslips, jsPDF reports and CSV exports that open in spreadsheet tools.
 - **Deployment:** No production hosting configuration is included. Configure HTTPS, environment secrets, MongoDB access controls, backups, monitoring and an approved deployment platform before launch.
 
@@ -98,7 +98,7 @@ Replace these placeholders with sanitized screenshots. Never use real employee, 
 
 ## Account setup
 
-The application does not include demo accounts or seed data. Visitors can create an employee account from `/signup`; signup stores the user in MongoDB with a hashed password. Admin and HR users can also create employee accounts from the People workspace.
+The application does not include demo accounts or seed data. Visitors can register Admin, HR, or Employee accounts from `/signup` after verifying a six-digit email OTP. Registration stores a hashed password and a role-based Unique ID in MongoDB.
 
 ## Installation and setup
 
@@ -106,7 +106,7 @@ The application does not include demo accounts or seed data. Visitors can create
 
 - Node.js 20 or later and npm.
 - A MongoDB instance (local or hosted).
-- SMTP credentials for employee welcome and password-reset email delivery.
+- SMTP credentials for registration OTPs, password-reset OTPs, and employee welcome messages.
 
 ### 1. Clone the repository
 
@@ -124,7 +124,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Set `MONGO_URI` and `JWT_SECRET` in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters and a restricted MongoDB user. Configure SMTP variables in `server/.env` for employee welcome email and password-reset email delivery. Never commit this file.
+Set `MONGO_URI` and `JWT_SECRET` in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters and a restricted MongoDB user. Configure the SMTP variables, including `EMAIL_USER` and `EMAIL_PASS`, in `server/.env` for registration OTP, password-reset OTP, and employee welcome email delivery. Never commit this file.
 
 ### 3. Configure and run the client
 
@@ -154,7 +154,7 @@ The server defaults CORS to `*` when `CLIENT_URL` is unset. Set `CLIENT_URL` to 
 
 ### Account signup
 
-Open `/signup` to create an active Employee account using a unique email and a password of at least eight characters. Sign in at `/login` after signup. Public signup never grants administrator privileges; create Admin and HR accounts from the People workspace.
+Open `/signup` to register with a full name, unique email and contact number, date of birth, role, and password of at least eight characters. A six-digit OTP is sent to the email address before the account is created. The resulting Unique ID uses the role prefix (`AD`, `HR`, or `EM`), the first and last initials, and the date of birth in `DDMMYYYY` format. Sign in at `/login` using either the email address or Unique ID, password, and matching account role. Use **Forgot password?** to verify the Unique ID/email pair, receive an OTP, and set a new password.
 
 ## Environment variables
 

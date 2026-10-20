@@ -20,13 +20,14 @@ function createTransporter() {
   });
 }
 
-async function sendOtpEmail(email, code) {
+async function sendOtpEmail(email, code, purpose = 'password-reset') {
   const transporter = createTransporter();
+  const isSignup = purpose === 'signup';
   await transporter.sendMail({
     from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
     to: email,
-    subject: 'Password reset code',
-    text: `Your verification code to reset your password is ${code}. It expires in 60 seconds. If you did not request this, you can ignore this email.`,
+    subject: isSignup ? 'Your Northstar registration code' : 'Password reset code',
+    text: `Your verification code ${isSignup ? 'to complete your Northstar registration' : 'to reset your password'} is ${code}. It expires in 10 minutes. If you did not request this, you can ignore this email.`,
   });
 }
 

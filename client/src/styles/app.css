@@ -88,6 +88,8 @@ button { cursor: pointer; }
 .login-card select:invalid { color: #8797ad; }
 .login-card select option { color: #edf2fa; background: #0d1727; }
 .login-card input:focus, .login-card select:focus, .directory-filters select:focus, .search-field:focus-within { border-color: #7893ff; box-shadow: 0 0 0 3px rgba(95, 123, 238, .17); }
+.login-card input.input-error, .login-card select.input-error { border-color: #d86666; }
+.login-card input.input-error:focus, .login-card select.input-error:focus { box-shadow: 0 0 0 3px rgba(216, 102, 102, .16); }
 .password-field { display: flex; align-items: center; }
 .password-field input { padding-right: 60px; }
 .text-button { margin-left: -54px; border: 0; color: #aab9d1; background: transparent; font-size: 12px; font-weight: 700; }
