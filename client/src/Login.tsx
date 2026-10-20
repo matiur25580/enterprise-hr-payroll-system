@@ -13,6 +13,12 @@ type SignupResponse = {
   user: { uniqueId: string; userId?: string }
 }
 
+type OtpRequestResponse = {
+  message: string
+  devMode?: boolean
+  otp?: string
+}
+
 type Page = 'login' | 'signup' | 'forgot'
 type SignupForm = {
   name: string
@@ -44,7 +50,6 @@ const emptySignup: SignupForm = {
 function requestError(error: unknown, fallback: string) {
   if (axios.isAxiosError<{ error?: string; message?: string; details?: string }>(error)) {
     const response = error.response?.data
-    if (response?.error === 'EMAIL_NOT_CONFIGURED' && response.message) return response.message
     return response?.message ?? response?.details ?? fallback
   }
   return fallback
@@ -70,6 +75,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
   const [registeredId, setRegisteredId] = useState('')
   const [otpMode, setOtpMode] = useState<'signup' | 'reset' | null>(null)
   const [otp, setOtp] = useState('')
+  const [devOtp, setDevOtp] = useState('')
   const [resendSeconds, setResendSeconds] = useState(0)
   const [resetVerified, setResetVerified] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -114,6 +120,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     setRegisteredId('')
     setOtpMode(null)
     setOtp('')
+    setDevOtp('')
     setResendSeconds(0)
     setResetVerified(false)
   }
@@ -187,13 +194,17 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     if (!validateSignup()) return
     setIsSubmitting(true)
     try {
-      await axios.post(`${apiUrl}/api/auth/send-otp`, {
+      const response = await axios.post<OtpRequestResponse>(`${apiUrl}/api/auth/send-otp`, {
         ...signup,
         name: signup.name.trim(),
         email: signup.email.trim(),
         role: signup.role.toLowerCase(),
       })
-      setOtp('')
+      const devModeOtp = response.data.devMode === true && typeof response.data.otp === 'string'
+        ? response.data.otp
+        : ''
+      setOtp(devModeOtp)
+      setDevOtp(devModeOtp)
       setOtpMode('signup')
       setResendSeconds(60)
     } catch (requestFailure) {
@@ -213,20 +224,26 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
     setFormError('')
     setIsSubmitting(true)
     try {
+      let devResponse: OtpRequestResponse | undefined
       if (otpMode === 'signup') {
-        await axios.post(`${apiUrl}/api/auth/send-otp`, {
+        const response = await axios.post<OtpRequestResponse>(`${apiUrl}/api/auth/send-otp`, {
           ...signup,
           name: signup.name.trim(),
           email: signup.email.trim(),
           role: signup.role.toLowerCase(),
         })
+        devResponse = response.data
       } else {
         await axios.post(`${apiUrl}/api/auth/password-reset/request-otp`, {
           uniqueId: forgot.uniqueId.trim(),
           email: forgot.email.trim(),
         })
       }
-      setOtp('')
+      const devModeOtp = devResponse?.devMode === true && typeof devResponse.otp === 'string'
+        ? devResponse.otp
+        : ''
+      setOtp(devModeOtp)
+      setDevOtp(devModeOtp)
       setResendSeconds(60)
     } catch (requestFailure) {
       setFormError(requestError(requestFailure, 'Could not resend the verification code. Please try again.'))
@@ -249,6 +266,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
         otp,
       })
       setOtpMode(null)
+      setDevOtp('')
       setRegisteredId(response.data.user.uniqueId || response.data.user.userId || '')
       setSuccess('registration successful')
     } catch (requestFailure) {
@@ -498,6 +516,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
           <section className="otp-dialog" role="dialog" aria-modal="true" aria-labelledby="otp-title">
             <h2 id="otp-title">{otpMode === 'signup' ? 'Verify your email' : 'Verify your identity'}</h2>
             <p>Enter the 6-digit code sent to {otpMode === 'signup' ? signup.email : forgot.email}.</p>
+            {otpMode === 'signup' && devOtp && <p className="otp-timer" role="status">Dev mode: OTP is {devOtp}. It has been filled in for you.</p>}
             <form noValidate onSubmit={otpMode === 'signup' ? confirmSignup : verifyResetOtp}>
               <label className="field-label" htmlFor="auth-otp">6-digit verification code</label>
               <input id="auth-otp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={otp} onInput={(event) => { setOtp(event.currentTarget.value.replace(/\D/g, '')); setFormError('') }} aria-invalid={Boolean(formError)} />
@@ -509,7 +528,7 @@ export default function Login({ onLogin }: { onLogin: (session: UserSession) => 
                 {resendSeconds > 0 ? `You can request another code in ${resendSeconds}s.` : 'You can request another code now.'}
               </p>
               {resendSeconds === 0 && <button className="forgot-link" type="button" onClick={() => void resendOtp()} disabled={isSubmitting}>Resend code</button>}
-              <button className="forgot-link otp-cancel" type="button" onClick={() => { setOtpMode(null); setFormError('') }}>Cancel</button>
+              <button className="forgot-link otp-cancel" type="button" onClick={() => { setOtpMode(null); setDevOtp(''); setFormError('') }}>Cancel</button>
             </form>
           </section>
         </div>

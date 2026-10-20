@@ -7,6 +7,7 @@ const emailChallengeSchema = new mongoose.Schema({
   expiresAt: { type: Date, required: true },
   resendAfter: { type: Date, required: true },
   attempts: { type: Number, default: 0 },
+  devMode: { type: Boolean, default: false },
   userId: String,
   pendingSignup: mongoose.Schema.Types.Mixed,
   verifiedAt: Date,

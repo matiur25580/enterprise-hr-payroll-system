@@ -28,10 +28,10 @@ function createTransporter() {
 }
 
 async function sendOtpEmail(email, code, purpose = 'password-reset') {
-  const transporter = createTransporter();
   const { user } = getEmailCredentials();
   const isSignup = purpose === 'signup';
   try {
+    const transporter = createTransporter();
     await transporter.sendMail({
       from: process.env.EMAIL_FROM?.trim() || user,
       to: email,
@@ -39,9 +39,11 @@ async function sendOtpEmail(email, code, purpose = 'password-reset') {
       text: `Your verification code ${isSignup ? 'to complete your Northstar registration' : 'to reset your password'} is ${code}. It expires in 10 minutes. If you did not request this, you can ignore this email.`,
     });
   } catch (error) {
+    if (error?.code === 'EMAIL_NOT_CONFIGURED') throw error;
     console.error('Could not send verification email:', error);
-    if (error instanceof Error) error.code = 'EMAIL_SEND_FAILED';
-    throw error;
+    const sendError = error instanceof Error ? error : new Error(String(error));
+    sendError.code = 'EMAIL_SEND_FAILED';
+    throw sendError;
   }
 }
 

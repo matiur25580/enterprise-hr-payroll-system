@@ -124,7 +124,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Set `MONGO_URI` and `JWT_SECRET` in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters and a restricted MongoDB user. Configure `EMAIL_USER` and `EMAIL_PASS` with a Gmail account and app password in `server/.env` for registration OTP, password-reset OTP, and employee welcome email delivery. Never commit this file.
+Set `MONGO_URI` and `JWT_SECRET` in `server/.env`. Use a newly generated JWT signing secret with at least 32 characters and a restricted MongoDB user. Configure `EMAIL_USER` and `EMAIL_PASS` with a Gmail account and app password in `server/.env` for registration OTP, password-reset OTP, and employee welcome email delivery. For local demos only, set `NODE_ENV=development` and `DEV_OTP_FALLBACK=true` to allow signup OTPs to be displayed when email delivery is unavailable. This fallback is disabled in production and should never be enabled on a public deployment. Never commit this file.
 
 ### 3. Configure and run the client
 
