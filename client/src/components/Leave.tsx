@@ -94,10 +94,7 @@ const [leaves, setLeaves] = useState<LeaveRequest[]>([])
     }
   }
 
-  const reviewLeave = async (request: LeaveRequest, decision: 'approve' | 'reject') => {
-    setError('')
-    setReviewingId(request._id)
-    try {
+  const reviewLeave = async (leave: any, action: 'ap
       const response = await axios.put<LeaveRequest>(
         `${apiUrl}/api/leaves/${request._id}/${decision}`,
         {},
