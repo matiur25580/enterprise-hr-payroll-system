@@ -1,4 +1,10 @@
 import { useEffect, useState } from 'preact/hooks'
+const safeFormatDate = (v:any) => {
+  if(!v) return "-";
+  const d = new Date(v);
+  if(isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit",year:"numeric"});
+};
 import axios from 'axios'
 import { apiUrl } from '../services/api'
 
@@ -178,9 +184,9 @@ export default function Leave({ token, employeeSelfService, onNotify, onUnauthor
             {leaves.map((leave) => (
               <tr key={leave._id}>
                 {!employeeSelfService && <td>{leave.employeeName}<small className="leave-email">{leave.employeeEmail}</small></td>}
-                <td className="capitalize">{leave.type}</td>
-                <td>{new Date(leave.from).toLocaleDateString()}</td>
-                <td>{new Date(leave.to).toLocaleDateString()}</td>
+                <td className="capitalize">{leave.type || leave.leaveType || leave.leave_type || "-"}</td>
+                <td>{safeFormatDate(leave.from || leave.fromDate || leave.startDate)}</td>
+                <td>{safeFormatDate(leave.to || leave.toDate || leave.endDate)}</td>
                 <td>{leave.reason}</td>
                 <td><span className={`leave-status status-${leave.status}`}>{leave.status}</span></td>
                 {!employeeSelfService && (
