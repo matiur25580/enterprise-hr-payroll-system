@@ -1,15 +1,10 @@
 const nodemailer = require('nodemailer');
 
 function getEmailCredentials() {
-  const user = typeof process.env.EMAIL_USER === 'string' ? process.env.EMAIL_USER.trim().toLowerCase() : '';
-  const pass = typeof process.env.EMAIL_PASS === 'string' ? process.env.EMAIL_PASS.replace(/\s/g, '') : '';
+  const user = typeof process.env.EMAIL_USER === 'string' ? process.env.EMAIL_USER.trim() : '';
+  const pass = typeof process.env.EMAIL_PASS === 'string' ? process.env.EMAIL_PASS.replace(/\s+/g, '') : '';
 
   return { user, pass };
-}
-
-function isEmailConfigured() {
-  const { user, pass } = getEmailCredentials();
-  return Boolean(user && pass);
 }
 
 function createTransporter() {
@@ -27,16 +22,15 @@ function createTransporter() {
   });
 }
 
-async function sendOtpEmail(email, code, purpose = 'password-reset') {
+async function sendOtpEmail(email, code) {
   const { user } = getEmailCredentials();
-  const isSignup = purpose === 'signup';
   try {
     const transporter = createTransporter();
     await transporter.sendMail({
       from: process.env.EMAIL_FROM?.trim() || user,
       to: email,
-      subject: isSignup ? 'Your Northstar registration code' : 'Password reset code',
-      text: `Your verification code ${isSignup ? 'to complete your Northstar registration' : 'to reset your password'} is ${code}. It expires in 10 minutes. If you did not request this, you can ignore this email.`,
+      subject: 'Northstar Workplace - Your OTP',
+      text: `Your 6-digit OTP is ${code}. Valid for 5 minutes.`,
     });
   } catch (error) {
     if (error?.code === 'EMAIL_NOT_CONFIGURED') throw error;
@@ -67,4 +61,3 @@ async function sendWelcomeEmail(email, name) {
 
 module.exports = sendOtpEmail;
 module.exports.sendWelcomeEmail = sendWelcomeEmail;
-module.exports.isEmailConfigured = isEmailConfigured;

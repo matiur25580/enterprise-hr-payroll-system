@@ -1,3 +1,4 @@
+const { sendOtp, verifyOtp } = require('./otp');
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -107,4 +108,14 @@ async function startServer() {
 startServer().catch((error) => {
   console.error('Could not start the server:', error.message);
   process.exitCode = 1;
+});
+
+app.post('/api/auth/send-otp', async (req,res)=>{
+  try{ await sendOtp(req.body.email); res.json({success:true}); }
+  catch(e){ console.log(e.message); res.status(500).json({error:e.message}); }
+});
+app.post('/api/auth/verify-otp', (req,res)=>{
+  const r = verifyOtp(req.body.email, req.body.otp);
+  if(r==='ok') return res.json({success:true});
+  return res.status(400).json({error:'invalid credentials/OTP'});
 });

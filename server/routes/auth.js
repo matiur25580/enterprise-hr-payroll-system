@@ -3,27 +3,20 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Otp = require('../models/Otp');
 const EmailChallenge = require('../models/EmailChallenge');
 const sendOtpEmail = require('../utils/email');
-const isEmailConfigured = sendOtpEmail.isEmailConfigured;
 const createRateLimit = require('../middlewares/rateLimit');
 const { verifyToken } = require('../middlewares/auth');
 
 const router = express.Router();
-const OTP_LIFETIME_MS = 10 * 60 * 1000;
-const DEV_OTP_LIFETIME_MS = 5 * 60 * 1000;
+const OTP_LIFETIME_MS = 5 * 60 * 1000;
 const OTP_RESEND_DELAY_MS = 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
 const rolePrefixes = { admin: 'AD', hr: 'HR', employee: 'EM' };
 const loginRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many sign-in attempts. Try again later.' });
 const registrationRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many signup attempts. Try again later.' });
 const otpRateLimit = createRateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too many verification requests. Try again later.' });
-const devOtpStore = new Map();
-
-function isDevOtpFallbackEnabled() {
-  return process.env.NODE_ENV === 'development' && process.env.DEV_OTP_FALLBACK === 'true';
-}
-
 router.get('/session', verifyToken, (req, res) => {
   res.json({
     user: {
@@ -82,14 +75,17 @@ function makeUniqueId(name, role, birthDate) {
 }
 
 async function saveChallenge({ email, purpose, pendingSignup, userId }) {
-  const currentChallenge = await EmailChallenge.findOne({ email, purpose }).select('resendAfter').lean();
+  const currentChallenge = await EmailChallenge.findOne({ email, purpose }).select('resendAfter codeHash').lean();
   if (currentChallenge?.resendAfter && currentChallenge.resendAfter.getTime() > Date.now()) {
     const error = new Error('Please wait before requesting another code.');
     error.status = 429;
     throw error;
   }
 
-  const code = makeOtp();
+  let code = makeOtp();
+  while (currentChallenge?.codeHash && await bcrypt.compare(code, currentChallenge.codeHash)) {
+    code = makeOtp();
+  }
   const codeHash = await bcrypt.hash(code, 10);
   const now = Date.now();
   const update = {
@@ -97,7 +93,6 @@ async function saveChallenge({ email, purpose, pendingSignup, userId }) {
     expiresAt: new Date(now + OTP_LIFETIME_MS),
     resendAfter: new Date(now + OTP_RESEND_DELAY_MS),
     attempts: 0,
-    devMode: false,
   };
   const unset = { verifiedAt: 1 };
   if (pendingSignup) {
@@ -116,32 +111,11 @@ async function saveChallenge({ email, purpose, pendingSignup, userId }) {
   );
 
   try {
-    if (!isEmailConfigured()) {
-      const error = new Error('Email delivery is not configured');
-      error.code = 'EMAIL_NOT_CONFIGURED';
-      throw error;
-    }
-    await sendOtpEmail(email, code, purpose);
+    await sendOtpEmail(email, code);
   } catch (error) {
-    if (purpose === 'signup' && isDevOtpFallbackEnabled()
-      && (error.code === 'EMAIL_NOT_CONFIGURED' || error.code === 'EMAIL_SEND_FAILED')) {
-      const expiresAt = Date.now() + DEV_OTP_LIFETIME_MS;
-      await EmailChallenge.updateOne(
-        { _id: challenge._id, codeHash },
-        { $set: { expiresAt: new Date(expiresAt), devMode: true } },
-      );
-      const previous = devOtpStore.get(email);
-      if (previous?.timer) clearTimeout(previous.timer);
-      const timer = setTimeout(() => devOtpStore.delete(email), DEV_OTP_LIFETIME_MS);
-      timer.unref?.();
-      devOtpStore.set(email, { code, expiresAt, timer });
-      console.warn(`Development signup OTP for ${email}: ${code}`);
-      return { devMode: true, otp: code };
-    }
     await EmailChallenge.deleteOne({ _id: challenge._id, codeHash });
     throw error;
   }
-  return { devMode: false };
 }
 
 async function findDuplicateRegistration(email, phone) {
@@ -183,29 +157,29 @@ router.post(['/send-otp', '/signup/request-otp'], registrationRateLimit, async (
       return res.status(409).json({ message: 'this email and number already registered, plz login' });
     }
 
-    const otpResult = await saveChallenge({
-      email,
-      purpose: 'signup',
-      pendingSignup: {
-        name,
-        phone,
-        dateOfBirth: birthDate,
-        role,
-        password: await bcrypt.hash(password, 12),
-      },
-    });
-    if (otpResult.devMode) {
-      return res.json({
-        success: true,
-        devMode: true,
-        otp: otpResult.otp,
-        message: 'Email is unavailable; development OTP returned.',
-        expiresIn: DEV_OTP_LIFETIME_MS / 1000,
-      });
+    const currentOtp = await Otp.findOne({ email }).select('otp').lean();
+    let otp = makeOtp();
+    while (currentOtp?.otp === otp) otp = makeOtp();
+    const pendingSignup = {
+      name,
+      phone,
+      dateOfBirth: birthDate,
+      role,
+      password: await bcrypt.hash(password, 12),
+    };
+    const storedOtp = await Otp.findOneAndUpdate(
+      { email },
+      { $set: { otp, expiresAt: new Date(Date.now() + OTP_LIFETIME_MS), pendingSignup } },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
+    );
+    try {
+      await sendOtpEmail(email, otp, 'signup');
+    } catch (error) {
+      await Otp.deleteOne({ _id: storedOtp._id, otp });
+      throw error;
     }
     return res.json({
       success: true,
-      devMode: false,
       message: 'Verification code sent to your email address.',
       expiresIn: OTP_LIFETIME_MS / 1000,
     });
@@ -222,37 +196,40 @@ router.post(['/send-otp', '/signup/request-otp'], registrationRateLimit, async (
   }
 });
 
-router.post('/signup/verify-otp', otpRateLimit, async (req, res) => {
+router.post(['/verify-otp', '/signup/verify-otp'], otpRateLimit, async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email);
     const code = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
     if (!email || !/^\d{6}$/.test(code)) return res.status(400).json({ message: 'invalid credentials/OTP' });
 
-    const challenge = await EmailChallenge.findOne({ email, purpose: 'signup' });
-    let devOtpIsValid = true;
-    if (challenge?.devMode) {
-      const devOtp = devOtpStore.get(email);
-      if (!devOtp || devOtp.expiresAt <= Date.now()) {
-        if (devOtp?.timer) clearTimeout(devOtp.timer);
-        devOtpStore.delete(email);
-        await EmailChallenge.deleteOne({ _id: challenge._id });
-        return res.status(400).json({ message: 'invalid credentials/OTP' });
-      }
-      devOtpIsValid = devOtp.code === code;
+    const otp = await Otp.findOne({ email });
+    if (!otp) return res.status(400).json({ error: 'invalid credentials/OTP', message: 'invalid credentials/OTP' });
+    if (otp.expiresAt.getTime() <= Date.now()) {
+      await Otp.deleteOne({ _id: otp._id });
+      return res.status(400).json({ error: 'OTP expired', message: 'OTP expired' });
     }
-    const verified = await consumeOtp(challenge, code);
-    if (!devOtpIsValid || !verified || !challenge.pendingSignup) {
+    if (otp.otp !== code) {
+      return res.status(400).json({ error: 'invalid credentials/OTP', message: 'invalid credentials/OTP' });
+    }
+    if (!otp.pendingSignup) {
       return res.status(400).json({ message: 'invalid credentials/OTP' });
     }
 
-    const { name, phone, dateOfBirth, role, password } = challenge.pendingSignup;
+    const { name, phone, dateOfBirth, role, password } = otp.pendingSignup;
     if (await findDuplicateRegistration(email, phone)) {
-      await EmailChallenge.deleteOne({ _id: challenge._id });
       return res.status(409).json({ message: 'this email and number already registered, plz login' });
     }
 
     const uniqueId = makeUniqueId(name, role, new Date(dateOfBirth));
     if (!uniqueId) return res.status(400).json({ message: 'Registration information is invalid.' });
+    const consumedOtp = await Otp.findOneAndDelete({
+      _id: otp._id,
+      otp: code,
+      expiresAt: { $gte: new Date() },
+    });
+    if (!consumedOtp) {
+      return res.status(400).json({ error: 'invalid credentials/OTP', message: 'invalid credentials/OTP' });
+    }
     const user = new User({
       name,
       email,
@@ -265,10 +242,6 @@ router.post('/signup/verify-otp', otpRateLimit, async (req, res) => {
       status: 'active',
     });
     await user.save();
-    await EmailChallenge.deleteOne({ _id: challenge._id });
-    const devOtp = devOtpStore.get(email);
-    if (devOtp?.timer) clearTimeout(devOtp.timer);
-    devOtpStore.delete(email);
     res.status(201).json({
       message: 'registration successful',
       user: { id: user._id, name: user.name, email: user.email, uniqueId, userId: uniqueId, role: user.role },
@@ -321,8 +294,11 @@ router.post('/password-reset/verify-otp', otpRateLimit, async (req, res) => {
       email,
       userId,
       purpose: 'password-reset',
-      expiresAt: { $gt: new Date() },
     });
+    if (challenge && challenge.expiresAt.getTime() < Date.now()) {
+      await EmailChallenge.deleteOne({ _id: challenge._id });
+      return res.status(400).json({ message: 'OTP expired' });
+    }
     const verified = await consumeOtp(challenge, code);
     if (!verified) return res.status(400).json({ message: 'invalid credentials/OTP' });
 
