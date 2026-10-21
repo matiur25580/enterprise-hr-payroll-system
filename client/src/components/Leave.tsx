@@ -9,6 +9,10 @@ type LeaveRequest = {
   type: 'sick' | 'casual' | 'annual'
   from: string
   to: string
+  fromDate?: string
+  startDate?: string
+  toDate?: string
+  endDate?: string
   reason: string
   status: 'pending' | 'approved' | 'rejected'
 }
