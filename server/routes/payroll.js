@@ -158,14 +158,24 @@ router.post('/generate', verifyToken, authorize('admin', 'hr'), async (req, res)
 router.patch('/:id/pay', verifyToken, authorize('admin', 'hr'), async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid payroll record ID.' });
-    const record = await Payroll.findById(req.params.id);
-    if (!record) return res.status(404).json({ message: 'Payroll record not found' });
-    if (record.status === 'Paid') return res.status(409).json({ message: 'This payroll has already been marked paid' });
-
-    record.status = 'Paid';
-    record.paidAt = new Date();
-    record.paidByEmail = String(req.user.email).toLowerCase();
-    await record.save();
+    // Make the state transition conditional in MongoDB so concurrent requests
+    // cannot both mark the same payroll record as paid and emit duplicate audit events.
+    const record = await Payroll.findOneAndUpdate(
+      { _id: req.params.id, status: { $ne: 'Paid' } },
+      {
+        $set: {
+          status: 'Paid',
+          paidAt: new Date(),
+          paidByEmail: String(req.user.email).toLowerCase()
+        }
+      },
+      { new: true, runValidators: true }
+    );
+    if (!record) {
+      const exists = await Payroll.exists({ _id: req.params.id });
+      if (!exists) return res.status(404).json({ message: 'Payroll record not found' });
+      return res.status(409).json({ message: 'This payroll has already been marked paid' });
+    }
     await recordWorkplaceActivity(
       req,
       record.employeeEmail,
