@@ -11,7 +11,7 @@
   "dependencies": {
     "axios": "^1.20.0",
     "jspdf": "^4.2.1",
-    "preact": "^10.29.8"
+    "preact": "^11.2.0"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.6",
