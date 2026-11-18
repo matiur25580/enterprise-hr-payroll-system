@@ -1,10 +1,8 @@
-const { sendOtp, verifyOtp } = require('./otp');
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDatabase = require('./config/database');
 const { getHealth } = require('./controllers/health');
-const Employee = require('./models/Employee');
 
 const authRoutes = require('./routes/auth');
 const employeeRoutes = require('./routes/employees');
@@ -22,15 +20,21 @@ const departmentRoutes = require('./routes/departments');
 const analyticsRoutes = require('./routes/analytics');
 const documentRoutes = require('./routes/documents');
 const { verifyToken, authorize } = require('./middlewares/auth');
-const authMiddleware = verifyToken;
+const { parseAllowedOrigins } = require('./config/originPolicy');
 
 const app = express();
 
-console.log('EMAIL_USER exists:', !!process.env.EMAIL_USER, 'EMAIL_PASS exists:', !!process.env.EMAIL_PASS);
 
 app.disable('x-powered-by');
+const allowedOrigins = parseAllowedOrigins(process.env.CLIENT_URL, process.env.NODE_ENV);
 app.use(cors({
-  origin: process.env.CLIENT_URL || '*',
+  origin(origin, callback) {
+    if (origin === undefined || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Origin is not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -45,17 +49,6 @@ app.use((req, res, next) => {
   next();
 });
 app.use('/api/auth', authRoutes);
-app.get('/api/employees', authMiddleware, async (req, res) => {
-  try {
-    const employees = await Employee.find(
-      req.user.role === 'employee' ? { email: req.user.email } : {},
-    );
-    return res.json(employees);
-  } catch (error) {
-    console.error('Could not load employees:', error);
-    return res.status(500).json({ message: error.message });
-  }
-});
 app.use('/api/employees', employeeRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/activity', activityRoutes);
@@ -75,14 +68,8 @@ app.get('/api/admin-only', verifyToken, authorize('admin'), (req, res) => {
   res.json({ message: `Welcome admin ${req.user.id}` });
 });
 app.get('/api/health', getHealth);
-app.get('/api/debug/email', (req, res) => {
-  res.json({
-    emailUserExists: !!process.env.EMAIL_USER,
-    emailPassExists: !!process.env.EMAIL_PASS,
-  });
-});
 app.get('/', (req, res) => res.json({ ok: true }));
-app.use('/api', (req, res) => res.status(404).json({ message: 'API route not found' }));
+app.use('/api', (req, res) => res.status(404).json({ error: { code: 'NOT_FOUND', message: 'API route not found.' } }));
 app.use((error, req, res, next) => {
   if (res.headersSent) return next(error);
   if (error.type === 'entity.too.large') return res.status(413).json({ message: 'Request body is too large' });
@@ -108,14 +95,4 @@ async function startServer() {
 startServer().catch((error) => {
   console.error('Could not start the server:', error.message);
   process.exitCode = 1;
-});
-
-app.post('/api/auth/send-otp', async (req,res)=>{
-  try{ await sendOtp(req.body.email); res.json({success:true}); }
-  catch(e){ console.log(e.message); res.status(500).json({error:e.message}); }
-});
-app.post('/api/auth/verify-otp', (req,res)=>{
-  const r = verifyOtp(req.body.email, req.body.otp);
-  if(r==='ok') return res.json({success:true});
-  return res.status(400).json({error:'invalid credentials/OTP'});
 });
