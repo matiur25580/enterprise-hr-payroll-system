@@ -8,6 +8,7 @@ const EmailChallenge = require('../models/EmailChallenge');
 const sendOtpEmail = require('../utils/email');
 const createRateLimit = require('../middlewares/rateLimit');
 const { verifyToken } = require('../middlewares/auth');
+const { isPublicSignupRole } = require('../config/signupPolicy');
 
 const router = express.Router();
 const OTP_LIFETIME_MS = 5 * 60 * 1000;
@@ -143,6 +144,9 @@ router.post(['/send-otp', '/signup/request-otp'], registrationRateLimit, async (
     const birthDate = parseBirthDate(req.body.dateOfBirth);
     const role = normalizeRole(req.body.role);
     const password = req.body.password;
+    if (!isPublicSignupRole(role)) {
+      return res.status(403).json({ message: 'Public registration is limited to employee accounts. Admin and HR accounts must be provisioned by an authorized administrator.' });
+    }
     const confirmPassword = req.body.confirmPassword;
 
     if (!name || name.length > 120 || name.split(/\s+/).length < 2
