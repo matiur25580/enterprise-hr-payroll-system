@@ -98,7 +98,7 @@ Replace these placeholders with sanitized screenshots. Never use real employee, 
 
 ## Account setup
 
-The application does not include demo accounts or seed data. Visitors can register Admin, HR, or Employee accounts from `/signup` after verifying a six-digit email OTP. Registration stores a hashed password and a role-based Unique ID in MongoDB.
+The application does not include demo accounts or seed data. Public signup at `/signup` is restricted to Employee accounts and requires a six-digit email OTP. Admin and HR accounts must be provisioned through a trusted administrative process; they cannot be created through public registration. Registration stores a hashed password and a role-based Unique ID in MongoDB.
 
 ## Installation and setup
 
@@ -154,7 +154,7 @@ npm test
 
 ### Account signup
 
-Open `/signup` to register with a full name, unique email and contact number, date of birth, role, and password of at least eight characters. A six-digit OTP is sent to the email address before the account is created. The resulting Unique ID uses the role prefix (`AD`, `HR`, or `EM`), the first and last initials, and the date of birth in `DDMMYYYY` format. Sign in at `/login` using either the email address or Unique ID, password, and matching account role. Use **Forgot password?** to verify the Unique ID/email pair, receive an OTP, and set a new password.
+Open `/signup` to register an Employee account with a full name, unique email and contact number, date of birth, and password of at least eight characters. Admin and HR roles are not available for public self-registration. A six-digit OTP is sent to the email address before the account is created. The resulting Unique ID uses the role prefix (`AD`, `HR`, or `EM`), the first and last initials, and the date of birth in `DDMMYYYY` format. Sign in at `/login` using either the email address or Unique ID, password, and matching account role. Use **Forgot password?** to verify the Unique ID/email pair, receive an OTP, and set a new password.
 
 ## Environment variables
 
