@@ -150,7 +150,7 @@ npm test
 2. Create a Vercel project from the same repository with the root directory set to `client`, build command `npm run build`, and output directory `dist`.
 3. In Vercel project settings, add `VITE_API_URL` with the Render API URL ending in `/api` (for example, `https://your-backend.onrender.com/api`) and redeploy. The client-side Vercel rewrite supports the app's role routes.
 
-The server defaults CORS to `*` when `CLIENT_URL` is unset. Set `CLIENT_URL` to the exact deployed frontend origin in production.
+`CLIENT_URL` accepts a comma-separated list of exact frontend origins. In production it is required; wildcard origins are rejected. Local development defaults to `http://localhost:5173` and `http://localhost:3000`. Configure Express proxy trust only for the actual trusted reverse-proxy topology before relying on forwarded client IPs for rate limiting.
 
 ### Account signup
 
@@ -180,6 +180,7 @@ Names only; values belong in ignored local files or a managed secret store.
 - `.env`, `.env.local`, `.env.*`, `node_modules`, generated builds and `.DS_Store` are excluded by `.gitignore`; placeholder `.env.example` files are retained.
 - Never commit MongoDB URIs, SMTP/app passwords, JWT signing keys, OTP material, local data exports or real HR/payroll documents.
 - Credentials found in local environment files were removed from this working tree, and earlier commits contain `.env` files. Rotate any MongoDB, SMTP and JWT credentials that were present before using this project again. Do not push existing Git history until those historical files have been purged; deleting current files does not remove historical copies.
+- The API uses an explicit browser-origin allowlist, credentialed CORS, and structured 404/error responses. The custom in-memory rate limiter uses Express's resolved request IP rather than trusting a client-supplied `X-Forwarded-For` header; configure the proxy trust boundary correctly and use a shared rate-limit store before horizontal scaling.
 - Admin analytics and audit endpoints are role-protected. Document files are limited to PDF uploads, stored in MongoDB, downloadable only through authenticated endpoints, and restricted to the assigned employee when applicable.
 - Use TLS, least-privilege database credentials, secure deployment secrets, backups, dependency updates and production monitoring before exposing the application.
 - Payroll calculations and annual summaries are simplified application estimates, not jurisdiction-specific tax or legal advice.
