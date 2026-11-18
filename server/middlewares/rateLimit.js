@@ -9,10 +9,9 @@ function createRateLimit({ windowMs, max, message }) {
 
   return (req, res, next) => {
     const now = Date.now();
-    const forwardedFor = req?.headers?.['x-forwarded-for'];
-    const rawIp = typeof forwardedFor === 'string' && forwardedFor.trim()
-      ? forwardedFor.split(',')[0].trim()
-      : req?.ip || req?.socket?.remoteAddress || 'unknown';
+    // Express req.ip is derived from the configured proxy trust boundary. Never trust
+    // the raw X-Forwarded-For header here: clients can forge it to evade throttling.
+    const rawIp = req?.ip || req?.socket?.remoteAddress || 'unknown';
     const key = String(rawIp || 'unknown');
     let entry = requests.get(key);
 
