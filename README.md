@@ -194,3 +194,9 @@ Names only; values belong in ignored local files or a managed secret store.
 - Configurable approvals, granular permissions and SSO/MFA.
 - Production deployment automation, centralized logging, monitoring and backup/restore exercises.
 - Accessibility and cross-browser review.
+
+## Live Demo
+
+**Frontend:** [Open Live Demo](https://enterprise-hr-payroll-system.vercel.app)
+
+> This link points to the deployed frontend. Features that depend on the API, database, email, file storage, or other external services may require the corresponding backend services and environment variables to be configured. Use test data only; this demo is not a production service.
