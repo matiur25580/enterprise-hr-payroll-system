@@ -9,6 +9,7 @@ const sendOtpEmail = require('../utils/email');
 const createRateLimit = require('../middlewares/rateLimit');
 const { verifyToken } = require('../middlewares/auth');
 const { isPublicSignupRole } = require('../config/signupPolicy');
+const { isEligibleLogin } = require('../utils/auth-security');
 
 const router = express.Router();
 const OTP_LIFETIME_MS = 5 * 60 * 1000;
@@ -379,7 +380,7 @@ router.post('/login', loginRateLimit, async (req, res) => {
     const passwordMatches = user
       ? await bcrypt.compare(password, user.password)
       : await bcrypt.compare(password, '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy');
-    if (!user || normalizeRole(user.role) !== requestedRole || !passwordMatches || user.status !== 'active') {
+    if (!isEligibleLogin(user, requestedRole, passwordMatches)) {
       return res.status(401).json({ message: 'Invalid account credentials or role.' });
     }
 
