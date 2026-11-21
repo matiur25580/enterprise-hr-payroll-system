@@ -9,6 +9,7 @@ const sendOtpEmail = require('../utils/email');
 const createRateLimit = require('../middlewares/rateLimit');
 const { verifyToken } = require('../middlewares/auth');
 const { isPublicSignupRole } = require('../config/signupPolicy');
+const { isEligibleLogin } = require('../utils/auth-security');
 
 const router = express.Router();
 const OTP_LIFETIME_MS = 5 * 60 * 1000;
@@ -273,9 +274,13 @@ router.post('/password-reset/request-otp', otpRateLimit, async (req, res) => {
     if (!email || !userId) return res.status(400).json({ message: 'Enter your unique ID and email address.' });
 
     const user = await User.findOne({ $or: [{ uniqueId: userId }, { userId }], email }).select('_id uniqueId userId email').lean();
-    if (!user) return res.status(404).json({ message: "this unique id doesn't exist with this email" });
-    await saveChallenge({ email, purpose: 'password-reset', userId: user.uniqueId || user.userId });
-    res.json({ message: 'Verification code sent to your email address.', expiresIn: OTP_LIFETIME_MS / 1000 });
+    if (user) {
+      await saveChallenge({ email, purpose: 'password-reset', userId: user.uniqueId || user.userId });
+    }
+    res.json({
+      message: 'If the account details are eligible, a verification code will be sent.',
+      expiresIn: OTP_LIFETIME_MS / 1000,
+    });
   } catch (error) {
     if (error.status === 429) return res.status(429).json({ message: error.message });
     if (error.code === 'EMAIL_NOT_CONFIGURED' || error.code === 'EMAIL_SEND_FAILED') {
@@ -372,20 +377,12 @@ router.post('/login', loginRateLimit, async (req, res) => {
     const user = await User.findOne(isEmail
       ? { email }
       : { $or: [{ uniqueId: userId }, { userId }] });
-    if (!user) {
-      return res.status(404).json({
-        message: isEmail
-          ? "this email doesn't registered, plz first registered"
-          : "this unique ID doesn't exist",
-      });
+    const passwordMatches = user
+      ? await bcrypt.compare(password, user.password)
+      : await bcrypt.compare(password, '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy');
+    if (!isEligibleLogin(user, requestedRole, passwordMatches)) {
+      return res.status(401).json({ message: 'Invalid account credentials or role.' });
     }
-    if (normalizeRole(user.role) !== requestedRole) {
-      return res.status(403).json({ message: 'Account role does not match the selected role.' });
-    }
-    if (!(await bcrypt.compare(password, user.password))) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-    if (user.status !== 'active') return res.status(403).json({ message: 'Account pending admin approval' });
 
     const role = normalizeRole(user.role);
     const token = jwt.sign(
