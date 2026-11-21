@@ -259,7 +259,7 @@ router.post(['/verify-otp', '/signup/verify-otp'], otpRateLimit, async (req, res
       if (error.keyPattern?.uniqueId || error.keyPattern?.userId) {
         return res.status(409).json({ message: 'Could not create a unique ID in the requested format. Please contact support.' });
       }
-      return res.status(409).json({ message: 'this email and number already registered, plz login' });
+      return res.status(400).json({ error: 'invalid credentials/OTP', message: 'invalid credentials/OTP' });
     }
     console.error('Could not complete account registration:', error);
     res.status(500).json({ message: 'Could not complete registration. Please try again.' });
