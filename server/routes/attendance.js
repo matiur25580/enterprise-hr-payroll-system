@@ -69,56 +69,24 @@ router.get('/', verifyToken, authorize('admin', 'hr', 'employee'), async (req, r
 });
 
 router.post('/', verifyToken, authorize('employee'), async (req, res) => {
-  const { date, checkIn, checkOut } = req.body;
-  const hasCheckIn = checkIn !== undefined && checkIn !== null;
-  const hasCheckOut = checkOut !== undefined && checkOut !== null;
-  const requestedDate = parseDateKey(date);
-  if (!requestedDate || date !== todayKey() || !hasCheckIn) {
-    return res.status(400).json({ message: 'Provide today’s date and check-in time.' });
-  }
-  const requestedCheckIn = new Date(checkIn);
-  const requestedCheckOut = hasCheckOut ? new Date(checkOut) : null;
-  if (
-    typeof checkIn !== 'string'
-    || !Number.isFinite(requestedCheckIn.getTime())
-    || (hasCheckOut && (typeof checkOut !== 'string' || !Number.isFinite(requestedCheckOut.getTime())))
-  ) {
-    return res.status(400).json({ message: 'Provide valid attendance times.' });
+  const requestedDate = parseDateKey(req.body.date);
+  if (!requestedDate || req.body.date !== todayKey() || req.body.checkOut !== undefined) {
+    return res.status(400).json({ message: 'Provide today’s date. Use the checkout endpoint to end your workday.' });
   }
 
   try {
     const employee = await findSignedInEmployee(req.user.email);
     if (!employee) return res.status(404).json({ message: 'Employee profile is not linked to this account' });
-    let record = await Attendance.findOne({ employee: employee._id, date });
-    if (!hasCheckOut) {
-      if (record?.checkIn) return res.status(409).json({ message: 'You have already checked in today' });
-      record = record || new Attendance({ employee: employee._id, date });
-      record.checkIn = requestedCheckIn;
-      record.status = 'present';
-    } else {
-      if (!record?.checkIn) return res.status(404).json({ message: 'No check-in found for today' });
-      if (record.checkOut) return res.status(409).json({ message: 'You have already checked out today' });
-      if (requestedCheckIn.getTime() !== record.checkIn.getTime()) {
-        return res.status(409).json({ message: 'The supplied check-in does not match today’s attendance record.' });
-      }
-      if (requestedCheckOut < record.checkIn) return res.status(400).json({ message: 'Check-out time cannot be before check-in.' });
-      record.checkOut = requestedCheckOut;
-    }
-    await record.save();
-    const action = hasCheckOut ? 'checked out' : 'checked in';
-    await recordWorkplaceActivity(req, employee.email, 'attendance-recorded', `${employee.name} ${action} for work.`);
-    await recordAudit(
-      req,
-      hasCheckOut ? 'checked-out' : 'checked-in',
-      'attendance',
-      record._id,
-      `Recorded a ${hasCheckOut ? 'check-out' : 'check-in'} for ${employee.name}.`
+    const record = await Attendance.findOneAndUpdate(
+      { employee: employee._id, date: req.body.date, checkIn: { $exists: false } },
+      { $set: { checkIn: new Date(), status: 'present' }, $setOnInsert: { employee: employee._id, date: req.body.date } },
+      { new: true, upsert: true, runValidators: true }
     );
-    res.status(hasCheckOut ? 200 : 201).json(record);
+    await recordWorkplaceActivity(req, employee.email, 'attendance-recorded', `${employee.name} checked in for work.`);
+    await recordAudit(req, 'checked-in', 'attendance', record._id, `Recorded a check-in for ${employee.name}.`);
+    res.status(201).json(record);
   } catch (error) {
-    if (error.code === 11000) {
-      return res.status(409).json({ message: 'Attendance has already been recorded for today.' });
-    }
+    if (error.code === 11000) return res.status(409).json({ message: 'You have already checked in today' });
     console.error('Could not record attendance:', error);
     res.status(500).json({ message: 'Could not record attendance' });
   }
@@ -156,12 +124,23 @@ router.post('/checkout', verifyToken, authorize('employee'), async (req, res) =>
   try {
     const employee = await findSignedInEmployee(req.user.email);
     if (!employee) return res.status(404).json({ message: 'Employee profile is not linked to this account' });
-    const record = await Attendance.findOne({ employee: employee._id, date: todayKey() });
-    if (!record) return res.status(404).json({ message: 'No check-in found for today' });
-    if (record.checkOut) return res.status(409).json({ message: 'You have already checked out today' });
-
-    record.checkOut = new Date();
-    await record.save();
+    const date = todayKey();
+    const record = await Attendance.findOneAndUpdate(
+      {
+        employee: employee._id,
+        date,
+        checkIn: { $exists: true },
+        $or: [{ checkOut: { $exists: false } }, { checkOut: null }]
+      },
+      { $set: { checkOut: new Date() } },
+      { new: true, runValidators: true }
+    );
+    if (!record) {
+      const existing = await Attendance.exists({ employee: employee._id, date });
+      return res.status(existing ? 409 : 404).json({
+        message: existing ? 'You have already checked out today' : 'No check-in found for today'
+      });
+    }
     await recordWorkplaceActivity(
       req,
       employee.email,
