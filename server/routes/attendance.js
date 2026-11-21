@@ -5,6 +5,7 @@ const Attendance = require('../models/Attendance');
 const { verifyToken, authorize } = require('../middlewares/auth');
 const recordWorkplaceActivity = require('../utils/activity');
 const recordAudit = require('../utils/audit');
+const { buildCheckInFilter, buildCheckOutFilter } = require('../utils/attendance');
 
 const router = express.Router();
 
@@ -78,7 +79,7 @@ router.post('/', verifyToken, authorize('employee'), async (req, res) => {
     const employee = await findSignedInEmployee(req.user.email);
     if (!employee) return res.status(404).json({ message: 'Employee profile is not linked to this account' });
     const record = await Attendance.findOneAndUpdate(
-      { employee: employee._id, date: req.body.date, checkIn: { $exists: false } },
+      buildCheckInFilter(employee._id, req.body.date),
       { $set: { checkIn: new Date(), status: 'present' }, $setOnInsert: { employee: employee._id, date: req.body.date } },
       { new: true, upsert: true, runValidators: true }
     );
@@ -126,12 +127,7 @@ router.post('/checkout', verifyToken, authorize('employee'), async (req, res) =>
     if (!employee) return res.status(404).json({ message: 'Employee profile is not linked to this account' });
     const date = todayKey();
     const record = await Attendance.findOneAndUpdate(
-      {
-        employee: employee._id,
-        date,
-        checkIn: { $exists: true },
-        $or: [{ checkOut: { $exists: false } }, { checkOut: null }]
-      },
+      buildCheckOutFilter(employee._id, date),
       { $set: { checkOut: new Date() } },
       { new: true, runValidators: true }
     );
