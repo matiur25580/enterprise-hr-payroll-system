@@ -3,7 +3,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const Otp = require('../models/Otp');
+const Employee = require('../models/Employee');
 const EmailChallenge = require('../models/EmailChallenge');
 const sendOtpEmail = require('../utils/email');
 const createRateLimit = require('../middlewares/rateLimit');
@@ -161,9 +161,6 @@ router.post(['/send-otp', '/signup/request-otp'], registrationRateLimit, async (
       return res.status(409).json({ message: 'this email and number already registered, plz login' });
     }
 
-    const currentOtp = await Otp.findOne({ email }).select('otp').lean();
-    let otp = makeOtp();
-    while (currentOtp?.otp === otp) otp = makeOtp();
     const pendingSignup = {
       name,
       phone,
@@ -171,17 +168,7 @@ router.post(['/send-otp', '/signup/request-otp'], registrationRateLimit, async (
       role,
       password: await bcrypt.hash(password, 12),
     };
-    const storedOtp = await Otp.findOneAndUpdate(
-      { email },
-      { $set: { otp, expiresAt: new Date(Date.now() + OTP_LIFETIME_MS), pendingSignup } },
-      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
-    );
-    try {
-      await sendOtpEmail(email, otp, 'signup');
-    } catch (error) {
-      await Otp.deleteOne({ _id: storedOtp._id, otp });
-      throw error;
-    }
+    await saveChallenge({ email, purpose: 'signup', pendingSignup });
     return res.json({
       success: true,
       message: 'Verification code sent to your email address.',
@@ -206,32 +193,32 @@ router.post(['/verify-otp', '/signup/verify-otp'], otpRateLimit, async (req, res
     const code = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
     if (!email || !/^\d{6}$/.test(code)) return res.status(400).json({ message: 'invalid credentials/OTP' });
 
-    const otp = await Otp.findOne({ email });
-    if (!otp) return res.status(400).json({ error: 'invalid credentials/OTP', message: 'invalid credentials/OTP' });
-    if (otp.expiresAt.getTime() <= Date.now()) {
-      await Otp.deleteOne({ _id: otp._id });
+    const challenge = await EmailChallenge.findOne({ email, purpose: 'signup' });
+    if (!challenge) return res.status(400).json({ error: 'invalid credentials/OTP', message: 'invalid credentials/OTP' });
+    if (challenge.expiresAt.getTime() <= Date.now()) {
+      await EmailChallenge.deleteOne({ _id: challenge._id });
       return res.status(400).json({ error: 'OTP expired', message: 'OTP expired' });
     }
-    if (otp.otp !== code) {
-      return res.status(400).json({ error: 'invalid credentials/OTP', message: 'invalid credentials/OTP' });
-    }
-    if (!otp.pendingSignup) {
+    if (!challenge.pendingSignup) {
       return res.status(400).json({ message: 'invalid credentials/OTP' });
     }
 
-    const { name, phone, dateOfBirth, role, password } = otp.pendingSignup;
+    const { name, phone, dateOfBirth, role, password } = challenge.pendingSignup;
     if (await findDuplicateRegistration(email, phone)) {
       return res.status(409).json({ message: 'this email and number already registered, plz login' });
     }
 
     const uniqueId = makeUniqueId(name, role, new Date(dateOfBirth));
     if (!uniqueId) return res.status(400).json({ message: 'Registration information is invalid.' });
-    const consumedOtp = await Otp.findOneAndDelete({
-      _id: otp._id,
-      otp: code,
-      expiresAt: { $gte: new Date() },
+    const verified = await consumeOtp(challenge, code);
+    if (!verified) return res.status(400).json({ error: 'invalid credentials/OTP', message: 'invalid credentials/OTP' });
+    const consumedChallenge = await EmailChallenge.findOneAndDelete({
+      _id: challenge._id,
+      codeHash: challenge.codeHash,
+      expiresAt: { $gt: new Date() },
+      attempts: { $lte: MAX_OTP_ATTEMPTS },
     });
-    if (!consumedOtp) {
+    if (!consumedChallenge) {
       return res.status(400).json({ error: 'invalid credentials/OTP', message: 'invalid credentials/OTP' });
     }
     const user = new User({
@@ -246,6 +233,18 @@ router.post(['/verify-otp', '/signup/verify-otp'], otpRateLimit, async (req, res
       status: 'active',
     });
     await user.save();
+    try {
+      await Employee.updateOne(
+        { email },
+        { $setOnInsert: { name, email, department: 'Unassigned', designation: 'Employee', salary: 0 } },
+        { upsert: true, runValidators: true },
+      );
+    } catch (employeeError) {
+      if (employeeError.code !== 11000 || !await Employee.exists({ email })) {
+        await User.deleteOne({ _id: user._id });
+        throw employeeError;
+      }
+    }
     res.status(201).json({
       message: 'registration successful',
       user: { id: user._id, name: user.name, email: user.email, uniqueId, userId: uniqueId, role: user.role },
