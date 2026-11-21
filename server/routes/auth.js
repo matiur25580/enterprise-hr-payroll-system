@@ -10,6 +10,7 @@ const createRateLimit = require('../middlewares/rateLimit');
 const { verifyToken } = require('../middlewares/auth');
 const { isPublicSignupRole } = require('../config/signupPolicy');
 const { isEligibleLogin, PASSWORD_RESET_GENERIC_FAILURE } = require('../utils/auth-security');
+const claimPasswordResetChallenge = require('../utils/claim-password-reset-challenge');
 
 const router = express.Router();
 const OTP_LIFETIME_MS = 5 * 60 * 1000;
@@ -334,13 +335,9 @@ router.post('/password-reset/reset', async (req, res) => {
       return res.status(400).json({ message: 'Enter a password with at least 8 characters.' });
     }
 
-    const challenge = await EmailChallenge.findOne({
-      email,
-      userId,
-      purpose: 'password-reset',
-      expiresAt: { $gt: new Date() },
-      verifiedAt: { $exists: true },
-    });
+    // Atomically consume the verified challenge before changing the password.
+    // Only one concurrent reset request can claim this OTP.
+    const challenge = await claimPasswordResetChallenge(EmailChallenge, email, userId);
     if (!challenge) return res.status(400).json({ message: PASSWORD_RESET_GENERIC_FAILURE });
 
     const user = await User.findOne({ email, $or: [{ uniqueId: userId }, { userId }] });
@@ -348,7 +345,6 @@ router.post('/password-reset/reset', async (req, res) => {
     user.password = await bcrypt.hash(password, 12);
     user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();
-    await EmailChallenge.deleteOne({ _id: challenge._id });
     res.json({ message: 'password successfully change' });
   } catch (error) {
     console.error('Could not reset password:', error);
