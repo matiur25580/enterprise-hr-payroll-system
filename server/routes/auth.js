@@ -9,7 +9,7 @@ const sendOtpEmail = require('../utils/email');
 const createRateLimit = require('../middlewares/rateLimit');
 const { verifyToken } = require('../middlewares/auth');
 const { isPublicSignupRole } = require('../config/signupPolicy');
-const { isEligibleLogin } = require('../utils/auth-security');
+const { isEligibleLogin, PASSWORD_RESET_GENERIC_FAILURE } = require('../utils/auth-security');
 
 const router = express.Router();
 const OTP_LIFETIME_MS = 5 * 60 * 1000;
@@ -341,10 +341,10 @@ router.post('/password-reset/reset', async (req, res) => {
       expiresAt: { $gt: new Date() },
       verifiedAt: { $exists: true },
     });
-    if (!challenge) return res.status(400).json({ message: 'Verify your OTP before changing your password.' });
+    if (!challenge) return res.status(400).json({ message: PASSWORD_RESET_GENERIC_FAILURE });
 
     const user = await User.findOne({ email, $or: [{ uniqueId: userId }, { userId }] });
-    if (!user) return res.status(404).json({ message: "this unique id doesn't exist with this email" });
+    if (!user) return res.status(400).json({ message: PASSWORD_RESET_GENERIC_FAILURE });
     user.password = await bcrypt.hash(password, 12);
     user.tokenVersion = (user.tokenVersion ?? 0) + 1;
     await user.save();

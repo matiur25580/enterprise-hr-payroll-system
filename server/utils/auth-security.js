@@ -4,4 +4,6 @@ function isEligibleLogin(user, requestedRole, passwordMatches) {
     && passwordMatches);
 }
 
-module.exports = { isEligibleLogin };
+const PASSWORD_RESET_GENERIC_FAILURE = 'Unable to reset password. Verify the account details and OTP, then try again.';
+
+module.exports = { isEligibleLogin, PASSWORD_RESET_GENERIC_FAILURE };
