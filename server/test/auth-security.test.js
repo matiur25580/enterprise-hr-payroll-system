@@ -21,3 +21,8 @@ test('login eligibility is false for inactive accounts', () => {
 test('login eligibility accepts only active accounts with matching roles and passwords', () => {
   assert.equal(isEligibleLogin({ role: 'Employee', status: 'active' }, 'employee', true), true);
 });
+
+test('password reset uses a generic failure message without disclosing account existence', () => {
+  const { PASSWORD_RESET_GENERIC_FAILURE } = require('../utils/auth-security');
+  assert.equal(PASSWORD_RESET_GENERIC_FAILURE, 'Unable to reset password. Verify the account details and OTP, then try again.');
+});
