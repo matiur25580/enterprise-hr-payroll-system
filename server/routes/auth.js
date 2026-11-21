@@ -158,7 +158,12 @@ router.post(['/send-otp', '/signup/request-otp'], registrationRateLimit, async (
     }
 
     if (await findDuplicateRegistration(email, phone)) {
-      return res.status(409).json({ message: 'this email and number already registered, plz login' });
+      // Keep the response indistinguishable from a successful request to avoid account enumeration.
+      return res.json({
+        success: true,
+        message: 'If the details are eligible, a verification code will be sent.',
+        expiresIn: OTP_LIFETIME_MS / 1000,
+      });
     }
 
     const pendingSignup = {
@@ -171,7 +176,7 @@ router.post(['/send-otp', '/signup/request-otp'], registrationRateLimit, async (
     await saveChallenge({ email, purpose: 'signup', pendingSignup });
     return res.json({
       success: true,
-      message: 'Verification code sent to your email address.',
+      message: 'If the details are eligible, a verification code will be sent.',
       expiresIn: OTP_LIFETIME_MS / 1000,
     });
   } catch (error) {
@@ -205,7 +210,7 @@ router.post(['/verify-otp', '/signup/verify-otp'], otpRateLimit, async (req, res
 
     const { name, phone, dateOfBirth, role, password } = challenge.pendingSignup;
     if (await findDuplicateRegistration(email, phone)) {
-      return res.status(409).json({ message: 'this email and number already registered, plz login' });
+      return res.status(400).json({ error: 'invalid credentials/OTP', message: 'invalid credentials/OTP' });
     }
 
     const uniqueId = makeUniqueId(name, role, new Date(dateOfBirth));
@@ -254,7 +259,7 @@ router.post(['/verify-otp', '/signup/verify-otp'], otpRateLimit, async (req, res
       if (error.keyPattern?.uniqueId || error.keyPattern?.userId) {
         return res.status(409).json({ message: 'Could not create a unique ID in the requested format. Please contact support.' });
       }
-      return res.status(409).json({ message: 'this email and number already registered, plz login' });
+      return res.status(400).json({ error: 'invalid credentials/OTP', message: 'invalid credentials/OTP' });
     }
     console.error('Could not complete account registration:', error);
     res.status(500).json({ message: 'Could not complete registration. Please try again.' });
