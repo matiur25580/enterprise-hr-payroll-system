@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+// Authentication verifies the Bearer JWT; authorization then checks the role attached to that token.
 const verifyToken = (req,res,next)=>{
   const header = req.headers.authorization;
   if(!header || !header.startsWith('Bearer '))
