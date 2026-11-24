@@ -1,3 +1,4 @@
+// Normalize the configured API base URL so callers can append route paths consistently.
 const configuredApiUrl = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/+$/, '')
 
 export const apiUrl = configuredApiUrl.endsWith('/api')
