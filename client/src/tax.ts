@@ -1,3 +1,4 @@
+// Derives the sample payroll breakdown from gross salary using the configured percentage rules.
 export function calcPayroll(salary:number){
   const basic = Math.round(salary*0.5)
   const hra = Math.round(salary*0.4)
