@@ -22,6 +22,7 @@ const documentRoutes = require('./routes/documents');
 const { verifyToken, authorize } = require('./middlewares/auth');
 const { parseAllowedOrigins } = require('./config/originPolicy');
 
+// Application entry point: configure shared middleware, register HR modules, and centralize API errors.
 const app = express();
 
 
