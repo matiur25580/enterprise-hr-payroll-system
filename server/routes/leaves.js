@@ -5,6 +5,7 @@ const LeaveRequest = require('../models/LeaveRequest');
 const { verifyToken, authorize } = require('../middlewares/auth');
 const recordWorkplaceActivity = require('../utils/activity');
 const recordAudit = require('../utils/audit');
+const buildPendingLeaveReviewFilter = require('../utils/leave-review');
 
 const router = express.Router();
 const leaveTypes = ['sick', 'casual', 'annual'];
@@ -73,16 +74,23 @@ const reviewRequest = (status) => async (req, res) => {
     return res.status(400).json({ message: 'Invalid leave request ID.' });
   }
   try {
-    const request = await LeaveRequest.findById(req.params.id);
-    if (!request) return res.status(404).json({ message: 'Leave request not found' });
-    if (request.status?.toLowerCase() !== 'pending') {
-      return res.status(409).json({ message: 'This leave request has already been reviewed' });
+    const request = await LeaveRequest.findOneAndUpdate(
+      buildPendingLeaveReviewFilter(req.params.id),
+      {
+        $set: {
+          status,
+          reviewedByEmail: String(req.user.email).toLowerCase(),
+          reviewedByRole: req.user.role,
+        },
+      },
+      { new: true, runValidators: true },
+    );
+    if (!request) {
+      const exists = await LeaveRequest.exists({ _id: req.params.id });
+      return res.status(exists ? 409 : 404).json({
+        message: exists ? 'This leave request has already been reviewed' : 'Leave request not found',
+      });
     }
-
-    request.status = status;
-    request.reviewedByEmail = String(req.user.email).toLowerCase();
-    request.reviewedByRole = req.user.role;
-    await request.save();
     await recordWorkplaceActivity(
       req,
       request.employeeEmail,
